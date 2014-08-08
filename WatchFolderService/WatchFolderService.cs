@@ -17,10 +17,9 @@ namespace WatchFolderService
 {
     public partial class WatchFolderService : ServiceBase
     {
-        private static long DEFAULT_PARTSIZE = 1048576;
         private static Object INFOFILE_LOCK = new Object(); // Lock for InfoFile that contains sync information
         private static bool SELF_SIGNED = true; // Target server is a self-signed server
-        private static bool INITIALIZED = false;
+        private static bool initialized = false;
 
         // Upload required information
         private string server = null;
@@ -29,11 +28,14 @@ namespace WatchFolderService
         private string userID = null;
         private string userKey = null;
         private string folderID = null;
-        private int elapse = 10000;
+        private int elapse = 60000;
+        private long defaultPartsize = 1048576;
+        private string[] extensions;
 
         // Event log
         private System.Diagnostics.EventLog eventLog1;
         private static int EVENT_ID = 1;
+        private bool verbose = false;
 
         public WatchFolderService()
         {
@@ -46,6 +48,10 @@ namespace WatchFolderService
             userID = ConfigurationManager.AppSettings["UserID"];
             userKey = ConfigurationManager.AppSettings["UserKey"];
             folderID = ConfigurationManager.AppSettings["FolderID"];
+            elapse = Convert.ToInt32(ConfigurationManager.AppSettings["ElapseTime"]);
+            defaultPartsize = Convert.ToInt64(ConfigurationManager.AppSettings["PartSize"]);
+            verbose = Convert.ToBoolean(ConfigurationManager.AppSettings["Verbose"]);
+            extensions = ConfigurationManager.AppSettings["UploadExtensions"].Split(';');
 
             Common.SetServer(server);
 
@@ -65,6 +71,7 @@ namespace WatchFolderService
 
             eventLog1.Source = "PanoptoWatchFolderService";
             eventLog1.Log = "PanoptoWatchFolderServiceLog";
+            
         }
 
         /// <summary>
@@ -124,7 +131,7 @@ namespace WatchFolderService
                 Dictionary<string, DateTime> uploadFiles = new Dictionary<string, DateTime>();
 
                 // Check files in folder for sync
-                foreach (FileInfo fi in di.GetFiles("*.mp4"))
+                foreach (FileInfo fi in GetFileInfo(di))
                 {
                     bool inSync = false;
                     bool found = false;
@@ -177,20 +184,25 @@ namespace WatchFolderService
             {
                 try
                 {
+                    // Event Log Record
+                    if (verbose)
+                        eventLog1.WriteEntry("Uploading: " + filePath, EventLogEntryType.Information, EVENT_ID);
+
                     UploadAPIWrapper.UploadFile(userID,
                                                 userKey, 
                                                 folderID, 
                                                 Path.GetFileName(filePath), 
                                                 filePath, 
-                                                DEFAULT_PARTSIZE);
+                                                defaultPartsize);
                 }
                 catch (Exception ex)
                 {
                     // Event Log Record
                     eventLog1.WriteEntry("Uploading " + filePath + " Failed: " + ex.Message, 
-                                         EventLogEntryType.Error, 
-                                         EVENT_ID); 
-                    eventLog1.WriteEntry("Error Log: " + ex.StackTrace, EventLogEntryType.Error, EVENT_ID);
+                                         EventLogEntryType.Warning, 
+                                         EVENT_ID);
+                    if (verbose)
+                        eventLog1.WriteEntry("Stack Trace: " + ex.StackTrace, EventLogEntryType.Warning, EVENT_ID);
 
                     folderInfo[Path.GetFileName(filePath)] = uploadFiles[filePath];
                 }
@@ -240,6 +252,9 @@ namespace WatchFolderService
                 {
                     string line = fileName + ";" + info[fileName].ToString("G");
 
+                    if (verbose)
+                        eventLog1.WriteEntry("Writing to InfoFile: " + line, EventLogEntryType.Information, EVENT_ID);
+                    
                     infoFile.WriteLine(line);
                 }
             }
@@ -275,6 +290,70 @@ namespace WatchFolderService
             }
 
             return new DateTime(year, month, date, hr, min, sec, DateTimeKind.Local);
+        }
+
+        /// <summary>
+        /// Obtain the FileInfo struct for each file that is present in directory represented by DirectoryInfo
+        /// </summary>
+        /// <param name="di">DirectoryInfo of directory to look in</param>
+        /// <returns>Array of FileInfo of files in the given directory</returns>
+        private FileInfo[] GetFileInfo(DirectoryInfo di)
+        {
+            FileInfo[] fullFiles = di.GetFiles();
+            System.Collections.ArrayList resultArray = new System.Collections.ArrayList();
+
+            foreach (FileInfo fi in fullFiles)
+            {
+                foreach (string ext in extensions)
+                {
+                    if (fi.Extension.Equals(ext) && IsFileAccessible(fi))
+                    {
+                        resultArray.Add(fi);
+                        break;
+                    }
+                }
+            }
+
+            FileInfo[] result = new FileInfo[resultArray.Count];
+
+            int i = 0;
+            foreach (FileInfo fi in resultArray)
+            {
+                result[i] = fi;
+                i++;
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Check if file given in FileInfo fi is accessible
+        /// </summary>
+        /// <param name="fi">FileInfo for file to check</param>
+        /// <returns>True if file is accessible, false otherwise</returns>
+        private bool IsFileAccessible(FileInfo fi)
+        {
+            FileStream fs = null;
+
+            try
+            {
+                fs = fi.Open(FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+            }
+            catch (IOException)
+            {
+                // Event log report
+                if (verbose)
+                    eventLog1.WriteEntry("Unable to access file: " + fi.Name, EventLogEntryType.Warning, EVENT_ID);
+
+                return false;
+            }
+            finally
+            {
+                if (fs != null)
+                    fs.Close();
+            }
+
+            return true;
         }
 
         //======================== Service Status
@@ -324,10 +403,10 @@ namespace WatchFolderService
         /// </summary>
         public static void EnsureCertificateValidation()
         {
-            if (!INITIALIZED)
+            if (!initialized)
             {
                 ServicePointManager.ServerCertificateValidationCallback += new System.Net.Security.RemoteCertificateValidationCallback(CustomCertificateValidation);
-                INITIALIZED = true;
+                initialized = true;
             }
         }
 
