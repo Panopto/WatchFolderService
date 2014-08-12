@@ -3,6 +3,7 @@ C:\Users\dliu\Documents\Visual Studio 2012\Projects\WatchFolderService\WatchFold
 C:\Users\dliu\Documents\Visual Studio 2012\Projects\WatchFolderService\WatchFolderService\bin\Debug\WatchFolderService.pdb
 C:\Users\dliu\Documents\Visual Studio 2012\Projects\WatchFolderService\WatchFolderService\bin\Debug\AWSSDK.dll
 C:\Users\dliu\Documents\Visual Studio 2012\Projects\WatchFolderService\WatchFolderService\bin\Debug\AWSSDK.xml
+C:\Users\dliu\Documents\Visual Studio 2012\Projects\WatchFolderService\WatchFolderService\obj\Debug\WatchFolderService.csprojResolveAssemblyReference.cache
 C:\Users\dliu\Documents\Visual Studio 2012\Projects\WatchFolderService\WatchFolderService\obj\Debug\WatchFolderService.ProjectInstaller.resources
 C:\Users\dliu\Documents\Visual Studio 2012\Projects\WatchFolderService\WatchFolderService\obj\Debug\WatchFolderService.WatchFolderService.resources
 C:\Users\dliu\Documents\Visual Studio 2012\Projects\WatchFolderService\WatchFolderService\obj\Debug\WatchFolderService.csproj.GenerateResource.Cache

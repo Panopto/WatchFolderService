@@ -32,16 +32,17 @@ namespace WatchFolderService
         private long defaultPartsize = 1048576;
         private string[] extensions;
 
-        // Event log
-        private System.Diagnostics.EventLog eventLog1;
+        // Event log variables
+        private System.Diagnostics.EventLog eventLog;
         private static int EVENT_ID = 1;
         private bool verbose = false;
 
         public WatchFolderService()
         {
             InitializeComponent();
-            this.AutoLog = false; // Auto Event Log
+            this.AutoLog = false; // System Generated Event Log
 
+            // Parse config file
             server = ConfigurationManager.AppSettings["Server"];
             infoFilePath = ConfigurationManager.AppSettings["InfoFilePath"];
             watchFolder = ConfigurationManager.AppSettings["WatchFolder"];
@@ -61,16 +62,16 @@ namespace WatchFolderService
                 EnsureCertificateValidation();
             }
 
-            // Event Log
-            eventLog1 = new System.Diagnostics.EventLog();
+            // Event Log setup
+            eventLog = new System.Diagnostics.EventLog();
             if (!System.Diagnostics.EventLog.SourceExists("PanoptoWatchFolderService"))
             {
                 System.Diagnostics.EventLog.CreateEventSource(
                     "PanoptoWatchFolderService", "PanoptoWatchFolderServiceLog");
             }
 
-            eventLog1.Source = "PanoptoWatchFolderService";
-            eventLog1.Log = "PanoptoWatchFolderServiceLog";
+            eventLog.Source = "PanoptoWatchFolderService";
+            eventLog.Log = "PanoptoWatchFolderServiceLog";
             
         }
 
@@ -86,8 +87,9 @@ namespace WatchFolderService
             serviceStatus.dwWaitHint = 100000;
             SetServiceStatus(this.ServiceHandle, ref serviceStatus);
 
-            eventLog1.WriteEntry("Service Started Successfully"); // Event Log Record
+            eventLog.WriteEntry("Service Started Successfully"); // Event Log Record
 
+            // Setup timer
             System.Timers.Timer timer = new System.Timers.Timer();
             timer.Interval = elapse;
             timer.Elapsed += new System.Timers.ElapsedEventHandler(OnTimer);
@@ -109,8 +111,8 @@ namespace WatchFolderService
             serviceStatus.dwWaitHint = 100000;
             SetServiceStatus(this.ServiceHandle, ref serviceStatus);
 
-            eventLog1.WriteEntry("Service Stopped Successfully"); // Event Log Record
-            eventLog1.Close();
+            eventLog.WriteEntry("Service Stopped Successfully"); // Event Log Record
+            eventLog.Close();
 
             // Update the service state to Running.
             serviceStatus.dwCurrentState = ServiceState.SERVICE_STOPPED;
@@ -124,23 +126,26 @@ namespace WatchFolderService
         /// <param name="args">Arguments</param>
         private void OnTimer(object sender, System.Timers.ElapsedEventArgs args)
         {
+            // Hold lock on sync info file to prevent data race
             lock (INFOFILE_LOCK)
             {
-                DirectoryInfo di = new DirectoryInfo(Path.GetFullPath(watchFolder));
-                Dictionary<string, DateTime> folderInfo = GetFolderInfo();
+                // Obtain info in sync info file
+                DirectoryInfo dirInfo = new DirectoryInfo(Path.GetFullPath(watchFolder));
+                Dictionary<string, DateTime> folderInfo = GetLastSyncInfo();
                 Dictionary<string, DateTime> uploadFiles = new Dictionary<string, DateTime>();
 
                 // Check files in folder for sync
-                foreach (FileInfo fi in GetFileInfo(di))
+                foreach (FileInfo fileInfo in GetFileInfo(dirInfo))
                 {
                     bool inSync = false;
                     bool found = false;
 
-                    if (folderInfo.ContainsKey(fi.Name))
+                    // Check if file is in sync
+                    if (folderInfo.ContainsKey(fileInfo.Name))
                     {
                         found = true;
-                        DateTime stored = folderInfo[fi.Name];
-                        DateTime current = fi.LastWriteTime;
+                        DateTime stored = folderInfo[fileInfo.Name];
+                        DateTime current = fileInfo.LastWriteTime;
                         current = new DateTime(current.Ticks - (current.Ticks % TimeSpan.TicksPerSecond), current.Kind);
 
                         if (stored.Equals(current))
@@ -149,25 +154,26 @@ namespace WatchFolderService
                         }
                     }
 
-                    // Add file to sync queue
+                    // Add file to sync queue if not in sync
                     if (!inSync)
                     {
                         if (found)
                         {
-                            uploadFiles.Add(fi.FullName, folderInfo[fi.Name]);
-                            folderInfo[fi.Name] = fi.LastWriteTime;
+                            uploadFiles.Add(fileInfo.FullName, folderInfo[fileInfo.Name]);
+                            folderInfo[fileInfo.Name] = fileInfo.LastWriteTime;
                         }
                         else
                         {
-                            uploadFiles.Add(fi.FullName, DateTime.MinValue);
-                            folderInfo.Add(fi.Name, fi.LastWriteTime);
+                            uploadFiles.Add(fileInfo.FullName, DateTime.MinValue);
+                            folderInfo.Add(fileInfo.Name, fileInfo.LastWriteTime);
                         }
                     }
                 }
 
+                // Upload file and store new sync info
                 ProcessUpload(uploadFiles, folderInfo);
 
-                SetFolderInfo(folderInfo);
+                SetSyncInfo(folderInfo);
 
                 EVENT_ID++;
             }
@@ -180,13 +186,14 @@ namespace WatchFolderService
         /// <param name="folderInfo">Information about file and its last write time</param>
         private void ProcessUpload(Dictionary<string, DateTime> uploadFiles, Dictionary<string, DateTime> folderInfo)
         {
+            // Upload each file and handle any exception
             foreach (string filePath in uploadFiles.Keys)
             {
                 try
                 {
                     // Event Log Record
                     if (verbose)
-                        eventLog1.WriteEntry("Uploading: " + filePath, EventLogEntryType.Information, EVENT_ID);
+                        eventLog.WriteEntry("Uploading: " + filePath, EventLogEntryType.Information, EVENT_ID);
 
                     UploadAPIWrapper.UploadFile(userID,
                                                 userKey, 
@@ -198,11 +205,11 @@ namespace WatchFolderService
                 catch (Exception ex)
                 {
                     // Event Log Record
-                    eventLog1.WriteEntry("Uploading " + filePath + " Failed: " + ex.Message, 
+                    eventLog.WriteEntry("Uploading " + filePath + " Failed: " + ex.Message, 
                                          EventLogEntryType.Warning, 
                                          EVENT_ID);
                     if (verbose)
-                        eventLog1.WriteEntry("Stack Trace: " + ex.StackTrace, EventLogEntryType.Warning, EVENT_ID);
+                        eventLog.WriteEntry("Stack Trace: " + ex.StackTrace, EventLogEntryType.Warning, EVENT_ID);
 
                     folderInfo[Path.GetFileName(filePath)] = uploadFiles[filePath];
                 }
@@ -210,10 +217,10 @@ namespace WatchFolderService
         }
 
         /// <summary>
-        /// Generate a Dictionary containing files in the folder and their last write time
+        /// Generate a Dictionary containing files in the folder and their last write time base on sync info file's content
         /// </summary>
         /// <returns>Dictionary containing files in folder and their last write time</returns>
-        private Dictionary<string, DateTime> GetFolderInfo()
+        private Dictionary<string, DateTime> GetLastSyncInfo()
         {
             Dictionary<string, DateTime> folderInfo = new Dictionary<string, DateTime>();
 
@@ -222,6 +229,7 @@ namespace WatchFolderService
                 return folderInfo;
             }
 
+            // Put info in sync file into dictionary for use
             string[] infoFileLines = File.ReadAllLines(Path.GetFullPath(infoFilePath));
 
             foreach (string line in infoFileLines)
@@ -244,7 +252,7 @@ namespace WatchFolderService
         /// Store into InfoFile the files and last write time contained in parameter info
         /// </summary>
         /// <param name="info">Dictionary that stores files and their last write time</param>
-        private void SetFolderInfo(Dictionary<string, DateTime> info)
+        private void SetSyncInfo(Dictionary<string, DateTime> info)
         {
             using (System.IO.StreamWriter infoFile = new System.IO.StreamWriter(Path.GetFullPath(infoFilePath), false))
             {
@@ -253,7 +261,7 @@ namespace WatchFolderService
                     string line = fileName + ";" + info[fileName].ToString("G");
 
                     if (verbose)
-                        eventLog1.WriteEntry("Writing to InfoFile: " + line, EventLogEntryType.Information, EVENT_ID);
+                        eventLog.WriteEntry("Writing to InfoFile: " + line, EventLogEntryType.Information, EVENT_ID);
                     
                     infoFile.WriteLine(line);
                 }
@@ -295,20 +303,20 @@ namespace WatchFolderService
         /// <summary>
         /// Obtain the FileInfo struct for each file that is present in directory represented by DirectoryInfo
         /// </summary>
-        /// <param name="di">DirectoryInfo of directory to look in</param>
+        /// <param name="dirInfo">DirectoryInfo of directory to look in</param>
         /// <returns>Array of FileInfo of files in the given directory</returns>
-        private FileInfo[] GetFileInfo(DirectoryInfo di)
+        private FileInfo[] GetFileInfo(DirectoryInfo dirInfo)
         {
-            FileInfo[] fullFiles = di.GetFiles();
+            FileInfo[] fullFiles = dirInfo.GetFiles();
             System.Collections.ArrayList resultArray = new System.Collections.ArrayList();
 
-            foreach (FileInfo fi in fullFiles)
+            foreach (FileInfo fileInfo in fullFiles)
             {
                 foreach (string ext in extensions)
                 {
-                    if (fi.Extension.Equals(ext) && IsFileAccessible(fi))
+                    if (fileInfo.Extension.Equals(ext) && IsFileAccessible(fileInfo))
                     {
-                        resultArray.Add(fi);
+                        resultArray.Add(fileInfo);
                         break;
                     }
                 }
@@ -317,9 +325,9 @@ namespace WatchFolderService
             FileInfo[] result = new FileInfo[resultArray.Count];
 
             int i = 0;
-            foreach (FileInfo fi in resultArray)
+            foreach (FileInfo fileInfo in resultArray)
             {
-                result[i] = fi;
+                result[i] = fileInfo;
                 i++;
             }
 
@@ -329,21 +337,21 @@ namespace WatchFolderService
         /// <summary>
         /// Check if file given in FileInfo fi is accessible
         /// </summary>
-        /// <param name="fi">FileInfo for file to check</param>
+        /// <param name="fileInfo">FileInfo for file to check</param>
         /// <returns>True if file is accessible, false otherwise</returns>
-        private bool IsFileAccessible(FileInfo fi)
+        private bool IsFileAccessible(FileInfo fileInfo)
         {
             FileStream fs = null;
 
             try
             {
-                fs = fi.Open(FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+                fs = fileInfo.Open(FileMode.Open, FileAccess.ReadWrite, FileShare.None);
             }
             catch (IOException)
             {
                 // Event log report
                 if (verbose)
-                    eventLog1.WriteEntry("Unable to access file: " + fi.Name, EventLogEntryType.Warning, EVENT_ID);
+                    eventLog.WriteEntry("Unable to access file: " + fileInfo.Name, EventLogEntryType.Warning, EVENT_ID);
 
                 return false;
             }
