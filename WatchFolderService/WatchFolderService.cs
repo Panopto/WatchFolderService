@@ -29,6 +29,7 @@ namespace WatchFolderService
         private string userKey = null;
         private string folderID = null;
         private int elapse = 60000;
+        private int fileWaitTime = 60;
         private long defaultPartsize = 1048576;
         private string[] extensions;
 
@@ -50,6 +51,7 @@ namespace WatchFolderService
             userKey = ConfigurationManager.AppSettings["UserKey"];
             folderID = ConfigurationManager.AppSettings["FolderID"];
             elapse = Convert.ToInt32(ConfigurationManager.AppSettings["ElapseTime"]);
+            fileWaitTime = Convert.ToInt32(ConfigurationManager.AppSettings["FileWaitTime"]);
             defaultPartsize = Convert.ToInt64(ConfigurationManager.AppSettings["PartSize"]);
             verbose = Convert.ToBoolean(ConfigurationManager.AppSettings["Verbose"]);
             extensions = ConfigurationManager.AppSettings["UploadExtensions"].Split(';');
@@ -131,26 +133,77 @@ namespace WatchFolderService
             {
                 // Obtain info in sync info file
                 DirectoryInfo dirInfo = new DirectoryInfo(Path.GetFullPath(watchFolder));
-                Dictionary<string, DateTime> folderInfo = GetLastSyncInfo();
-                Dictionary<string, DateTime> uploadFiles = new Dictionary<string, DateTime>();
+                Dictionary<string, SyncInfo> folderInfo = GetLastSyncInfo();
+                Dictionary<string, SyncInfo> uploadFiles = new Dictionary<string, SyncInfo>();
 
                 // Check files in folder for sync
                 foreach (FileInfo fileInfo in GetFileInfo(dirInfo))
                 {
-                    bool inSync = false;
-                    bool found = false;
+                    if (verbose)
+                        eventLog.WriteEntry("Checking File: " + fileInfo.Name, EventLogEntryType.Information, EVENT_ID);
 
-                    // Check if file is in sync
+                    bool found = false;
+                    bool inSync = false;
+                    bool isStable = false;
+
+                    // Check if file exists in folderInfo
                     if (folderInfo.ContainsKey(fileInfo.Name))
                     {
+                        if (verbose)
+                            eventLog.WriteEntry(fileInfo.Name + " found", EventLogEntryType.Information, EVENT_ID);
+
                         found = true;
-                        DateTime stored = folderInfo[fileInfo.Name];
+                        SyncInfo syncInfo = folderInfo[fileInfo.Name];
+                        DateTime stored = syncInfo.LastSyncWriteTime;
                         DateTime current = fileInfo.LastWriteTime;
                         current = new DateTime(current.Ticks - (current.Ticks % TimeSpan.TicksPerSecond), current.Kind);
 
+                        if (verbose)
+                            eventLog.WriteEntry("stored: " + stored.ToString("G") + 
+                                                "\ncurrent: " + current.ToString("G") + 
+                                                "\nNewSyncWriteTime" + syncInfo.NewSyncWriteTime.ToString("G") + 
+                                                "\n" + syncInfo.NewSyncWriteTime.Equals(current), EventLogEntryType.Information, EVENT_ID);
+
+                        // Check if file is in sync
                         if (stored.Equals(current))
                         {
+                            if (verbose)
+                                eventLog.WriteEntry(fileInfo.Name + " in sync", EventLogEntryType.Information, EVENT_ID);
+
                             inSync = true;
+                        }
+                        else
+                        {
+                            // Check if file's new LastWriteTime is the same as recorded
+                            // Wait for given fileWaitTime amount of time before indicating its stable and ready for upload
+                            // If not the same, wait time will be reseted
+                            if (syncInfo.NewSyncWriteTime.Equals(current))
+                            {
+                                if (verbose)
+                                    eventLog.WriteEntry("New write time in sync with record", EventLogEntryType.Information, EVENT_ID);
+
+                                if (syncInfo.FileStableTime >= fileWaitTime)
+                                {
+                                    if (verbose)
+                                        eventLog.WriteEntry(fileInfo.Name + " is stable", EventLogEntryType.Information, EVENT_ID);
+
+                                    isStable = true;
+                                }
+                                else
+                                {
+                                    int timePassed = (int)Math.Ceiling(elapse / 1000.0);
+
+                                    if (verbose)
+                                        eventLog.WriteEntry("Adding time to stable time: " + timePassed, EventLogEntryType.Information, EVENT_ID);
+
+                                    syncInfo.FileStableTime += timePassed;
+                                }
+                            }
+                            else
+                            {
+                                syncInfo.NewSyncWriteTime = new DateTime(current.Ticks);
+                                syncInfo.FileStableTime = 0;
+                            }
                         }
                     }
 
@@ -159,13 +212,16 @@ namespace WatchFolderService
                     {
                         if (found)
                         {
-                            uploadFiles.Add(fileInfo.FullName, folderInfo[fileInfo.Name]);
-                            folderInfo[fileInfo.Name] = fileInfo.LastWriteTime;
+                            if (isStable)
+                            {
+                                uploadFiles.Add(fileInfo.FullName, new SyncInfo(folderInfo[fileInfo.Name]));
+                                folderInfo[fileInfo.Name].LastSyncWriteTime = fileInfo.LastWriteTime;
+                                folderInfo[fileInfo.Name].FileStableTime = -1;
+                            }
                         }
                         else
                         {
-                            uploadFiles.Add(fileInfo.FullName, DateTime.MinValue);
-                            folderInfo.Add(fileInfo.Name, fileInfo.LastWriteTime);
+                            folderInfo.Add(fileInfo.Name, new SyncInfo(DateTime.MinValue, fileInfo.LastWriteTime, 0));
                         }
                     }
                 }
@@ -184,7 +240,7 @@ namespace WatchFolderService
         /// </summary>
         /// <param name="uploadFiles">Files to be uploaded</param>
         /// <param name="folderInfo">Information about file and its last write time</param>
-        private void ProcessUpload(Dictionary<string, DateTime> uploadFiles, Dictionary<string, DateTime> folderInfo)
+        private void ProcessUpload(Dictionary<string, SyncInfo> uploadFiles, Dictionary<string, SyncInfo> folderInfo)
         {
             // Upload each file and handle any exception
             foreach (string filePath in uploadFiles.Keys)
@@ -193,7 +249,11 @@ namespace WatchFolderService
                 {
                     // Event Log Record
                     if (verbose)
+                    {
                         eventLog.WriteEntry("Uploading: " + filePath, EventLogEntryType.Information, EVENT_ID);
+                        eventLog.WriteEntry("Upload Param: " + userID + ", " + userKey + ", " + folderID + ", " + Path.GetFileName(filePath) +
+                                            ", " + filePath + ", " + defaultPartsize, EventLogEntryType.Information, EVENT_ID);
+                    }
 
                     UploadAPIWrapper.UploadFile(userID,
                                                 userKey, 
@@ -220,9 +280,9 @@ namespace WatchFolderService
         /// Generate a Dictionary containing files in the folder and their last write time base on sync info file's content
         /// </summary>
         /// <returns>Dictionary containing files in folder and their last write time</returns>
-        private Dictionary<string, DateTime> GetLastSyncInfo()
+        private Dictionary<string, SyncInfo> GetLastSyncInfo()
         {
-            Dictionary<string, DateTime> folderInfo = new Dictionary<string, DateTime>();
+            Dictionary<string, SyncInfo> folderInfo = new Dictionary<string, SyncInfo>();
 
             if (!File.Exists(Path.GetFullPath(infoFilePath)))
             {
@@ -234,15 +294,21 @@ namespace WatchFolderService
 
             foreach (string line in infoFileLines)
             {
+                if (verbose)
+                    eventLog.WriteEntry("Reading Line: " + line, EventLogEntryType.Information, EVENT_ID);
+
                 string[] info = line.Split(';');
-                if (info.Length != 2)
+                if (info.Length != 4)
                 {
                     continue;
                 }
 
-                DateTime writeTime = GetDateTime(info[1]);
+                SyncInfo syncInfo = new SyncInfo();
+                syncInfo.LastSyncWriteTime = GetDateTime(info[1]);
+                syncInfo.NewSyncWriteTime = GetDateTime(info[2]);
+                syncInfo.FileStableTime = Convert.ToInt32(info[3]);
 
-                folderInfo.Add(info[0], writeTime);
+                folderInfo.Add(info[0], syncInfo);
             }
 
             return folderInfo;
@@ -252,13 +318,14 @@ namespace WatchFolderService
         /// Store into InfoFile the files and last write time contained in parameter info
         /// </summary>
         /// <param name="info">Dictionary that stores files and their last write time</param>
-        private void SetSyncInfo(Dictionary<string, DateTime> info)
+        private void SetSyncInfo(Dictionary<string, SyncInfo> info)
         {
             using (System.IO.StreamWriter infoFile = new System.IO.StreamWriter(Path.GetFullPath(infoFilePath), false))
             {
                 foreach (string fileName in info.Keys)
                 {
-                    string line = fileName + ";" + info[fileName].ToString("G");
+                    string line = fileName + ";" + info[fileName].LastSyncWriteTime.ToString("G") + ";" 
+                                  + info[fileName].NewSyncWriteTime.ToString("G") + ";" + info[fileName].FileStableTime;
 
                     if (verbose)
                         eventLog.WriteEntry("Writing to InfoFile: " + line, EventLogEntryType.Information, EVENT_ID);

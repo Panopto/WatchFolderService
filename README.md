@@ -18,6 +18,8 @@ This service watches the designated folder and uploads any files with designated
 When uploading file that is too big to be completely uploaded within the elapse time, the new sync processes called will hold until the previous upload has been completed, this is achieved using a lock
 
 Using the service: 
+	For simpler installation using InstallShield, read "Readme - InstallShield.txt"
+
 	Use the Developer Command Prompt in Visual Studio Tools to install the service's .exe file; navigate to the folder containing the .exe file for the service and use the command: installutil.exe WatchFolderService.exe
 
 	Run services.msc to view the full list of service. Find Panopto Watch Folder Service and start the service

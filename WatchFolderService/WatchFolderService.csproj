@@ -62,6 +62,7 @@
       <DependentUpon>ProjectInstaller.cs</DependentUpon>
     </Compile>
     <Compile Include="Session.cs" />
+    <Compile Include="SyncInfo.cs" />
     <Compile Include="Upload.cs" />
     <Compile Include="UploadAPIWrapper.cs" />
     <Compile Include="WatchFolderService.cs">
