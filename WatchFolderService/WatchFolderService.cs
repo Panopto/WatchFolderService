@@ -59,27 +59,13 @@ namespace WatchFolderService
                 if (elapse < 0)
                 {
                     inputValid = false;
-                    if (inputFailureMessage.Length == 0)
-                    {
-                        inputFailureMessage = "\tElapseTime invalid";
-                    }
-                    else
-                    {
-                        inputFailureMessage += "\n\tElapseTime invalid";
-                    }
+                    inputFailureMessage += "\n\tElapseTime invalid";
                 }
             }
             catch (Exception)
             {
                 inputValid = false;
-                if (inputFailureMessage.Length == 0)
-                {
-                    inputFailureMessage = "\tElapseTime invalid";
-                }
-                else
-                {
-                    inputFailureMessage += "\n\tElapseTime invalid";
-                }
+                inputFailureMessage += "\n\tElapseTime invalid";
             }
             try
             {
@@ -87,27 +73,13 @@ namespace WatchFolderService
                 if (fileWaitTime < 0)
                 {
                     inputValid = false;
-                    if (inputFailureMessage.Length == 0)
-                    {
-                        inputFailureMessage = "\tFileWaitTime invalid";
-                    }
-                    else
-                    {
-                        inputFailureMessage += "\n\tFileWaitTime invalid";
-                    }
+                    inputFailureMessage += "\n\tFileWaitTime invalid";
                 }
             }
             catch (Exception)
             {
                 inputValid = false;
-                if (inputFailureMessage.Length == 0)
-                {
-                    inputFailureMessage = "\tFileWaitTime invalid";
-                }
-                else
-                {
-                    inputFailureMessage += "\n\tFileWaitTime invalid";
-                }
+                inputFailureMessage += "\n\tFileWaitTime invalid";
             }
             try
             {
@@ -115,27 +87,13 @@ namespace WatchFolderService
                 if (defaultPartsize <= 0)
                 {
                     inputValid = false;
-                    if (inputFailureMessage.Length == 0)
-                    {
-                        inputFailureMessage = "\tPartSize cannot be less than or equal to 0";
-                    }
-                    else
-                    {
-                        inputFailureMessage += "\n\tPartSize cannot be less than or equal to 0";
-                    }
+                    inputFailureMessage += "\n\tPartSize cannot be less than or equal to 0";
                 }
             }
             catch (Exception)
             {
                 inputValid = false;
-                if (inputFailureMessage.Length == 0)
-                {
-                    inputFailureMessage = "\tPartSize invalid";
-                }
-                else
-                {
-                    inputFailureMessage += "\n\tPartSize invalid";
-                }
+                inputFailureMessage += "\n\tPartSize invalid";
             }
             try
             {
@@ -144,14 +102,7 @@ namespace WatchFolderService
             catch (Exception)
             {
                 inputValid = false;
-                if (inputFailureMessage.Length == 0)
-                {
-                    inputFailureMessage = "\tVerbose value invalid";
-                }
-                else
-                {
-                    inputFailureMessage += "\n\tVerbose value invalid";
-                }
+                inputFailureMessage += "\n\tVerbose value invalid";
             } 
             extensions = ConfigurationManager.AppSettings["UploadExtensions"].Split(';');
 
@@ -215,7 +166,7 @@ namespace WatchFolderService
             if (!inputValid)
             {
                 hasInvalidInput = true;
-                eventLog.WriteEntry("Invalid Input:\n" + inputFailureMessage, EventLogEntryType.Warning, 0);
+                eventLog.WriteEntry("Invalid Input:" + inputFailureMessage, EventLogEntryType.Warning, 0);
             }
             if ((extensions.Length == 1 && extensions[0].Trim().Length == 0) || extensions.Length == 0)
             {
