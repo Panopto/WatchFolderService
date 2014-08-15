@@ -12,6 +12,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography.X509Certificates;
 using System.Net;
+using System.Net.NetworkInformation;
 
 namespace WatchFolderService
 {
@@ -32,6 +33,8 @@ namespace WatchFolderService
         private int fileWaitTime = 60;
         private long defaultPartsize = 1048576;
         private string[] extensions;
+        private bool inputValid = true;
+        private string inputFailureMessage = "";
 
         // Event log variables
         private System.Diagnostics.EventLog eventLog;
@@ -50,10 +53,106 @@ namespace WatchFolderService
             userID = ConfigurationManager.AppSettings["UserID"];
             userKey = ConfigurationManager.AppSettings["UserKey"];
             folderID = ConfigurationManager.AppSettings["FolderID"];
-            elapse = Convert.ToInt32(ConfigurationManager.AppSettings["ElapseTime"]);
-            fileWaitTime = Convert.ToInt32(ConfigurationManager.AppSettings["FileWaitTime"]);
-            defaultPartsize = Convert.ToInt64(ConfigurationManager.AppSettings["PartSize"]);
-            verbose = Convert.ToBoolean(ConfigurationManager.AppSettings["Verbose"]);
+            try
+            {
+                elapse = Convert.ToInt32(ConfigurationManager.AppSettings["ElapseTime"]);
+                if (elapse < 0)
+                {
+                    inputValid = false;
+                    if (inputFailureMessage.Length == 0)
+                    {
+                        inputFailureMessage = "\tElapseTime invalid";
+                    }
+                    else
+                    {
+                        inputFailureMessage += "\n\tElapseTime invalid";
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                inputValid = false;
+                if (inputFailureMessage.Length == 0)
+                {
+                    inputFailureMessage = "\tElapseTime invalid";
+                }
+                else
+                {
+                    inputFailureMessage += "\n\tElapseTime invalid";
+                }
+            }
+            try
+            {
+                fileWaitTime = Convert.ToInt32(ConfigurationManager.AppSettings["FileWaitTime"]);
+                if (fileWaitTime < 0)
+                {
+                    inputValid = false;
+                    if (inputFailureMessage.Length == 0)
+                    {
+                        inputFailureMessage = "\tFileWaitTime invalid";
+                    }
+                    else
+                    {
+                        inputFailureMessage += "\n\tFileWaitTime invalid";
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                inputValid = false;
+                if (inputFailureMessage.Length == 0)
+                {
+                    inputFailureMessage = "\tFileWaitTime invalid";
+                }
+                else
+                {
+                    inputFailureMessage += "\n\tFileWaitTime invalid";
+                }
+            }
+            try
+            {
+                defaultPartsize = Convert.ToInt64(ConfigurationManager.AppSettings["PartSize"]);
+                if (defaultPartsize <= 0)
+                {
+                    inputValid = false;
+                    if (inputFailureMessage.Length == 0)
+                    {
+                        inputFailureMessage = "\tPartSize cannot be less than or equal to 0";
+                    }
+                    else
+                    {
+                        inputFailureMessage += "\n\tPartSize cannot be less than or equal to 0";
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                inputValid = false;
+                if (inputFailureMessage.Length == 0)
+                {
+                    inputFailureMessage = "\tPartSize invalid";
+                }
+                else
+                {
+                    inputFailureMessage += "\n\tPartSize invalid";
+                }
+            }
+            try
+            {
+                verbose = Convert.ToBoolean(ConfigurationManager.AppSettings["Verbose"]);
+            }
+            catch (Exception)
+            {
+                inputValid = false;
+                if (inputFailureMessage.Length == 0)
+                {
+                    inputFailureMessage = "\tVerbose value invalid";
+                }
+                else
+                {
+                    inputFailureMessage += "\n\tVerbose value invalid";
+                }
+            } 
             extensions = ConfigurationManager.AppSettings["UploadExtensions"].Split(';');
 
             Common.SetServer(server);
@@ -91,15 +190,56 @@ namespace WatchFolderService
 
             eventLog.WriteEntry("Service Started Successfully"); // Event Log Record
 
-            // Setup timer
-            System.Timers.Timer timer = new System.Timers.Timer();
-            timer.Interval = elapse;
-            timer.Elapsed += new System.Timers.ElapsedEventHandler(OnTimer);
-            timer.Start();
+            // Check input values
+            bool hasInvalidInput = false;
+            if (!Directory.Exists(Path.GetDirectoryName(infoFilePath)))
+            {
+                hasInvalidInput = true;
+                eventLog.WriteEntry("Invalid directory path for info file", EventLogEntryType.Warning, 0);
+            }
+            if (!Directory.Exists(watchFolder))
+            {
+                hasInvalidInput = true;
+                eventLog.WriteEntry("WatchFolder does not exist", EventLogEntryType.Warning, 0);
+            }
+            if (userID.Length == 0 || userKey.Length == 0)
+            {
+                hasInvalidInput = true;
+                eventLog.WriteEntry("Invalid user name or password", EventLogEntryType.Warning, 0);
+            }
+            if (folderID.Length == 0)
+            {
+                hasInvalidInput = true;
+                eventLog.WriteEntry("Invalid Folder ID", EventLogEntryType.Warning, 0);
+            }
+            if (!inputValid)
+            {
+                hasInvalidInput = true;
+                eventLog.WriteEntry("Invalid Input:\n" + inputFailureMessage, EventLogEntryType.Warning, 0);
+            }
+            if ((extensions.Length == 1 && extensions[0].Trim().Length == 0) || extensions.Length == 0)
+            {
+                hasInvalidInput = true;
+                eventLog.WriteEntry("Invalid extensions", EventLogEntryType.Warning, 0);
+            }
+
+            if (!hasInvalidInput)
+            {
+                // Setup timer
+                System.Timers.Timer timer = new System.Timers.Timer();
+                timer.Interval = elapse;
+                timer.Elapsed += new System.Timers.ElapsedEventHandler(OnTimer);
+                timer.Start();
+            }
 
             // Update the service state to Running.
             serviceStatus.dwCurrentState = ServiceState.SERVICE_RUNNING;
             SetServiceStatus(this.ServiceHandle, ref serviceStatus);
+
+            if (hasInvalidInput)
+            {
+                this.Stop();
+            }
         }
 
         /// <summary>
@@ -140,7 +280,9 @@ namespace WatchFolderService
                 foreach (FileInfo fileInfo in GetFileInfo(dirInfo))
                 {
                     if (verbose)
+                    {
                         eventLog.WriteEntry("Checking File: " + fileInfo.Name, EventLogEntryType.Information, EVENT_ID);
+                    }
 
                     bool found = false;
                     bool inSync = false;
@@ -150,7 +292,9 @@ namespace WatchFolderService
                     if (folderInfo.ContainsKey(fileInfo.Name))
                     {
                         if (verbose)
+                        {
                             eventLog.WriteEntry(fileInfo.Name + " found", EventLogEntryType.Information, EVENT_ID);
+                        }
 
                         found = true;
                         SyncInfo syncInfo = folderInfo[fileInfo.Name];
@@ -159,16 +303,20 @@ namespace WatchFolderService
                         current = new DateTime(current.Ticks - (current.Ticks % TimeSpan.TicksPerSecond), current.Kind);
 
                         if (verbose)
-                            eventLog.WriteEntry("stored: " + stored.ToString("G") + 
-                                                "\ncurrent: " + current.ToString("G") + 
-                                                "\nNewSyncWriteTime" + syncInfo.NewSyncWriteTime.ToString("G") + 
+                        {
+                            eventLog.WriteEntry("stored: " + stored.ToString("G") +
+                                                "\ncurrent: " + current.ToString("G") +
+                                                "\nNewSyncWriteTime" + syncInfo.NewSyncWriteTime.ToString("G") +
                                                 "\n" + syncInfo.NewSyncWriteTime.Equals(current), EventLogEntryType.Information, EVENT_ID);
+                        }
 
                         // Check if file is in sync
                         if (stored.Equals(current))
                         {
                             if (verbose)
+                            {
                                 eventLog.WriteEntry(fileInfo.Name + " in sync", EventLogEntryType.Information, EVENT_ID);
+                            }
 
                             inSync = true;
                         }
@@ -180,12 +328,16 @@ namespace WatchFolderService
                             if (syncInfo.NewSyncWriteTime.Equals(current))
                             {
                                 if (verbose)
+                                {
                                     eventLog.WriteEntry("New write time in sync with record", EventLogEntryType.Information, EVENT_ID);
+                                }
 
                                 if (syncInfo.FileStableTime >= fileWaitTime)
                                 {
                                     if (verbose)
+                                    {
                                         eventLog.WriteEntry(fileInfo.Name + " is stable", EventLogEntryType.Information, EVENT_ID);
+                                    }
 
                                     isStable = true;
                                 }
@@ -194,7 +346,9 @@ namespace WatchFolderService
                                     int timePassed = (int)Math.Ceiling(elapse / 1000.0);
 
                                     if (verbose)
+                                    {
                                         eventLog.WriteEntry("Adding time to stable time: " + timePassed, EventLogEntryType.Information, EVENT_ID);
+                                    }
 
                                     syncInfo.FileStableTime += timePassed;
                                 }
@@ -221,7 +375,15 @@ namespace WatchFolderService
                         }
                         else
                         {
-                            folderInfo.Add(fileInfo.Name, new SyncInfo(DateTime.MinValue, fileInfo.LastWriteTime, 0));
+                            if (fileWaitTime == 0)
+                            {
+                                uploadFiles.Add(fileInfo.FullName, new SyncInfo(DateTime.MinValue, fileInfo.LastWriteTime, 0));
+                                folderInfo.Add(fileInfo.Name, new SyncInfo(DateTime.MinValue, fileInfo.LastWriteTime, -1));
+                            }
+                            else
+                            {
+                                folderInfo.Add(fileInfo.Name, new SyncInfo(DateTime.MinValue, fileInfo.LastWriteTime, 0));
+                            }
                         }
                     }
                 }
@@ -251,7 +413,7 @@ namespace WatchFolderService
                     if (verbose)
                     {
                         eventLog.WriteEntry("Uploading: " + filePath, EventLogEntryType.Information, EVENT_ID);
-                        eventLog.WriteEntry("Upload Param: " + userID + ", " + userKey + ", " + folderID + ", " + Path.GetFileName(filePath) +
+                        eventLog.WriteEntry("Upload Param: " + userID + ", " + "USER PASSWORD" + ", " + folderID + ", " + Path.GetFileName(filePath) +
                                             ", " + filePath + ", " + defaultPartsize, EventLogEntryType.Information, EVENT_ID);
                     }
 
@@ -269,7 +431,9 @@ namespace WatchFolderService
                                          EventLogEntryType.Warning, 
                                          EVENT_ID);
                     if (verbose)
+                    {
                         eventLog.WriteEntry("Stack Trace: " + ex.StackTrace, EventLogEntryType.Warning, EVENT_ID);
+                    }
 
                     folderInfo[Path.GetFileName(filePath)] = uploadFiles[filePath];
                 }
@@ -295,7 +459,9 @@ namespace WatchFolderService
             foreach (string line in infoFileLines)
             {
                 if (verbose)
+                {
                     eventLog.WriteEntry("Reading Line: " + line, EventLogEntryType.Information, EVENT_ID);
+                }
 
                 string[] info = line.Split(';');
                 if (info.Length != 4)
@@ -328,7 +494,9 @@ namespace WatchFolderService
                                   + info[fileName].NewSyncWriteTime.ToString("G") + ";" + info[fileName].FileStableTime;
 
                     if (verbose)
+                    {
                         eventLog.WriteEntry("Writing to InfoFile: " + line, EventLogEntryType.Information, EVENT_ID);
+                    }
                     
                     infoFile.WriteLine(line);
                 }
@@ -418,7 +586,9 @@ namespace WatchFolderService
             {
                 // Event log report
                 if (verbose)
+                {
                     eventLog.WriteEntry("Unable to access file: " + fileInfo.Name, EventLogEntryType.Warning, EVENT_ID);
+                }
 
                 return false;
             }

@@ -2,6 +2,7 @@
 using Amazon.S3.Model;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text;
@@ -22,20 +23,53 @@ namespace WatchFolderService
         /// <param name="partSize">size to be uploaded for each part of multipart upload</param>
         public static void UploadFile(string userName, string userPassword, string folderID, string sessionName, string filePath, long partSize)
         {
-            Console.WriteLine("Authenticating...");
-            string adminAuthCookie = Common.LogonAndGetCookie(userName, userPassword);
+            string adminAuthCookie;
+            try
+            {
+                adminAuthCookie = Common.LogonAndGetCookie(userName, userPassword);
+            }
+            catch (Exception)
+            {
+                throw new InvalidDataException("Login Failed: Cannot connect to server or invalid user name and password combination");
+            }
 
-            Console.WriteLine("Creating Session...");
-            string sessionID = CreateSession(adminAuthCookie, folderID, sessionName);
+            string sessionID;
+            try
+            {
+                sessionID = CreateSession(adminAuthCookie, folderID, sessionName);
+            }
+            catch (Exception)
+            {
+                throw new InvalidDataException("Create Session Failed: Invalid folder ID");
+            }
 
-            Console.WriteLine("Creating Upload...");
-            Upload uploadInfo = CreateUpload(adminAuthCookie, sessionID, sessionName);
+            Upload uploadInfo;
+            try
+            {
+                uploadInfo = CreateUpload(adminAuthCookie, sessionID, sessionName);
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidDataException("Create Upload Failed: " + ex.Message);
+            }
 
-            Console.WriteLine("Uploading...");
-            UploadSingleFile(uploadInfo.UploadTarget, filePath, partSize);
+            try
+            {
+                UploadSingleFile(uploadInfo.UploadTarget, filePath, partSize);
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidDataException("Upload File Failed: " + ex.Message);
+            }
 
-            Console.WriteLine("Finalizing Upload...");
-            ProcessSession(uploadInfo, adminAuthCookie, sessionID);
+            try
+            {
+                ProcessSession(uploadInfo, adminAuthCookie, sessionID);
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidDataException("Finalize Upload Failed: " + ex.Message);
+            }
         }
 
         /// <summary>
