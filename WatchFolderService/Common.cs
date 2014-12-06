@@ -58,7 +58,7 @@ namespace WatchFolderService
 
             // set up the request
             HttpWebRequest request = (HttpWebRequest)HttpWebRequest.Create(
-                "https://" + server + "/Panopto/PublicAPI/4.2/Auth.svc");
+                "https://" + server + "/Panopto/PublicAPI/4.6/Auth.svc");
 
             request.Headers.Add("SOAPAction", "http://tempuri.org/IAuth/LogOnWithPassword");
 
