@@ -37,7 +37,6 @@ namespace WatchFolderService
         private string inputFailureMessage = "";
 
         // Event log variables
-        private System.Diagnostics.EventLog eventLog;
         private static int EVENT_ID = 1;
         private bool verbose = false;
 
@@ -115,15 +114,11 @@ namespace WatchFolderService
             }
 
             // Event Log setup
-            eventLog = new System.Diagnostics.EventLog();
             if (!System.Diagnostics.EventLog.SourceExists("PanoptoWatchFolderService"))
             {
                 System.Diagnostics.EventLog.CreateEventSource(
                     "PanoptoWatchFolderService", "PanoptoWatchFolderServiceLog");
             }
-
-            eventLog.Source = "PanoptoWatchFolderService";
-            eventLog.Log = "PanoptoWatchFolderServiceLog";
             
         }
 
@@ -133,63 +128,66 @@ namespace WatchFolderService
         /// <param name="args">Arguments</param>
         protected override void OnStart(string[] args)
         {
-            // Update the service state to Start Pending.
-            ServiceStatus serviceStatus = new ServiceStatus();
-            serviceStatus.dwCurrentState = ServiceState.SERVICE_START_PENDING;
-            serviceStatus.dwWaitHint = 100000;
-            SetServiceStatus(this.ServiceHandle, ref serviceStatus);
+            using (System.Diagnostics.EventLog eventLog = new System.Diagnostics.EventLog("PanoptoWatchFolderServiceLog",Environment.MachineName,"PanoptoWatchFolderService"))
+            {
+                // Update the service state to Start Pending.
+                ServiceStatus serviceStatus = new ServiceStatus();
+                serviceStatus.dwCurrentState = ServiceState.SERVICE_START_PENDING;
+                serviceStatus.dwWaitHint = 100000;
+                SetServiceStatus(this.ServiceHandle, ref serviceStatus);
 
-            eventLog.WriteEntry("Service Started Successfully"); // Event Log Record
+                eventLog.WriteEntry("Service Started Successfully"); // Event Log Record
 
-            // Check input values
-            bool hasInvalidInput = false;
-            if (!Directory.Exists(Path.GetDirectoryName(infoFilePath)))
-            {
-                hasInvalidInput = true;
-                eventLog.WriteEntry("Invalid directory path for info file", EventLogEntryType.Warning, 0);
-            }
-            if (!Directory.Exists(watchFolder))
-            {
-                hasInvalidInput = true;
-                eventLog.WriteEntry("WatchFolder does not exist", EventLogEntryType.Warning, 0);
-            }
-            if (userID.Length == 0 || userKey.Length == 0)
-            {
-                hasInvalidInput = true;
-                eventLog.WriteEntry("Invalid user name or password", EventLogEntryType.Warning, 0);
-            }
-            if (folderID.Length == 0)
-            {
-                hasInvalidInput = true;
-                eventLog.WriteEntry("Invalid Folder ID", EventLogEntryType.Warning, 0);
-            }
-            if (!inputValid)
-            {
-                hasInvalidInput = true;
-                eventLog.WriteEntry("Invalid Input:" + inputFailureMessage, EventLogEntryType.Warning, 0);
-            }
-            if ((extensions.Length == 1 && extensions[0].Trim().Length == 0) || extensions.Length == 0)
-            {
-                hasInvalidInput = true;
-                eventLog.WriteEntry("Invalid extensions", EventLogEntryType.Warning, 0);
-            }
+                // Check input values
+                bool hasInvalidInput = false;
+                if (!Directory.Exists(Path.GetDirectoryName(infoFilePath)))
+                {
+                    hasInvalidInput = true;
+                    eventLog.WriteEntry("Invalid directory path for info file", EventLogEntryType.Warning, 0);
+                }
+                if (!Directory.Exists(watchFolder))
+                {
+                    hasInvalidInput = true;
+                    eventLog.WriteEntry("WatchFolder does not exist", EventLogEntryType.Warning, 0);
+                }
+                if (userID.Length == 0 || userKey.Length == 0)
+                {
+                    hasInvalidInput = true;
+                    eventLog.WriteEntry("Invalid user name or password", EventLogEntryType.Warning, 0);
+                }
+                if (folderID.Length == 0)
+                {
+                    hasInvalidInput = true;
+                    eventLog.WriteEntry("Invalid Folder ID", EventLogEntryType.Warning, 0);
+                }
+                if (!inputValid)
+                {
+                    hasInvalidInput = true;
+                    eventLog.WriteEntry("Invalid Input:" + inputFailureMessage, EventLogEntryType.Warning, 0);
+                }
+                if ((extensions.Length == 1 && extensions[0].Trim().Length == 0) || extensions.Length == 0)
+                {
+                    hasInvalidInput = true;
+                    eventLog.WriteEntry("Invalid extensions", EventLogEntryType.Warning, 0);
+                }
 
-            if (!hasInvalidInput)
-            {
-                // Setup timer
-                System.Timers.Timer timer = new System.Timers.Timer();
-                timer.Interval = elapse;
-                timer.Elapsed += new System.Timers.ElapsedEventHandler(OnTimer);
-                timer.Start();
-            }
+                if (!hasInvalidInput)
+                {
+                    // Setup timer
+                    System.Timers.Timer timer = new System.Timers.Timer();
+                    timer.Interval = elapse;
+                    timer.Elapsed += new System.Timers.ElapsedEventHandler(OnTimer);
+                    timer.Start();
+                }
 
-            // Update the service state to Running.
-            serviceStatus.dwCurrentState = ServiceState.SERVICE_RUNNING;
-            SetServiceStatus(this.ServiceHandle, ref serviceStatus);
+                // Update the service state to Running.
+                serviceStatus.dwCurrentState = ServiceState.SERVICE_RUNNING;
+                SetServiceStatus(this.ServiceHandle, ref serviceStatus);
 
-            if (hasInvalidInput)
-            {
-                this.Stop();
+                if (hasInvalidInput)
+                {
+                    this.Stop();
+                }
             }
         }
 
@@ -198,18 +196,21 @@ namespace WatchFolderService
         /// </summary>
         protected override void OnStop()
         {
-            // Update the service state to Start Pending.
-            ServiceStatus serviceStatus = new ServiceStatus();
-            serviceStatus.dwCurrentState = ServiceState.SERVICE_STOP_PENDING;
-            serviceStatus.dwWaitHint = 100000;
-            SetServiceStatus(this.ServiceHandle, ref serviceStatus);
+            using (System.Diagnostics.EventLog eventLog = new System.Diagnostics.EventLog("PanoptoWatchFolderServiceLog", Environment.MachineName, "PanoptoWatchFolderService"))
+            {
+                // Update the service state to Start Pending.
+                ServiceStatus serviceStatus = new ServiceStatus();
+                serviceStatus.dwCurrentState = ServiceState.SERVICE_STOP_PENDING;
+                serviceStatus.dwWaitHint = 100000;
+                SetServiceStatus(this.ServiceHandle, ref serviceStatus);
 
-            eventLog.WriteEntry("Service Stopped Successfully"); // Event Log Record
-            eventLog.Close();
+                eventLog.WriteEntry("Service Stopped Successfully"); // Event Log Record
+                eventLog.Close();
 
-            // Update the service state to Running.
-            serviceStatus.dwCurrentState = ServiceState.SERVICE_STOPPED;
-            SetServiceStatus(this.ServiceHandle, ref serviceStatus);
+                // Update the service state to Running.
+                serviceStatus.dwCurrentState = ServiceState.SERVICE_STOPPED;
+                SetServiceStatus(this.ServiceHandle, ref serviceStatus);
+            }
         }
 
         /// <summary>
@@ -219,133 +220,146 @@ namespace WatchFolderService
         /// <param name="args">Arguments</param>
         private void OnTimer(object sender, System.Timers.ElapsedEventArgs args)
         {
-            // Hold lock on sync info file to prevent data race
-            lock (INFOFILE_LOCK)
-            {
-                // Obtain info in sync info file
-                DirectoryInfo dirInfo = new DirectoryInfo(Path.GetFullPath(watchFolder));
-                Dictionary<string, SyncInfo> folderInfo = GetLastSyncInfo();
-                Dictionary<string, SyncInfo> uploadFiles = new Dictionary<string, SyncInfo>();
-
-                // Check files in folder for sync
-                foreach (FileInfo fileInfo in GetFileInfo(dirInfo))
+                try
                 {
-                    if (verbose)
+                    // Hold lock on sync info file to prevent data race
+                    lock (INFOFILE_LOCK)
                     {
-                        eventLog.WriteEntry("Checking File: " + fileInfo.Name, EventLogEntryType.Information, EVENT_ID);
-                    }
+                        // Obtain info in sync info file
+                        DirectoryInfo dirInfo = new DirectoryInfo(Path.GetFullPath(watchFolder));
+                        Dictionary<string, SyncInfo> folderInfo = GetLastSyncInfo();
+                        Dictionary<string, SyncInfo> uploadFiles = new Dictionary<string, SyncInfo>();
 
-                    bool found = false;
-                    bool inSync = false;
-                    bool isStable = false;
-
-                    // Check if file exists in folderInfo
-                    if (folderInfo.ContainsKey(fileInfo.Name))
-                    {
-                        if (verbose)
+                        // Check files in folder for sync
+                        foreach (FileInfo fileInfo in GetFileInfo(dirInfo))
                         {
-                            eventLog.WriteEntry(fileInfo.Name + " found", EventLogEntryType.Information, EVENT_ID);
-                        }
-
-                        found = true;
-                        SyncInfo syncInfo = folderInfo[fileInfo.Name];
-                        DateTime stored = syncInfo.LastSyncWriteTime;
-                        DateTime current = fileInfo.LastWriteTime;
-                        current = new DateTime(current.Ticks - (current.Ticks % TimeSpan.TicksPerSecond), current.Kind);
-
-                        if (verbose)
-                        {
-                            eventLog.WriteEntry("stored: " + stored.ToString("G") +
-                                                "\ncurrent: " + current.ToString("G") +
-                                                "\nNewSyncWriteTime" + syncInfo.NewSyncWriteTime.ToString("G") +
-                                                "\n" + syncInfo.NewSyncWriteTime.Equals(current), EventLogEntryType.Information, EVENT_ID);
-                        }
-
-                        // Check if file is in sync
-                        if (stored.Equals(current))
-                        {
-                            if (verbose)
-                            {
-                                eventLog.WriteEntry(fileInfo.Name + " in sync", EventLogEntryType.Information, EVENT_ID);
-                            }
-
-                            inSync = true;
-                        }
-                        else
-                        {
-                            // Check if file's new LastWriteTime is the same as recorded
-                            // Wait for given fileWaitTime amount of time before indicating its stable and ready for upload
-                            // If not the same, wait time will be reseted
-                            if (syncInfo.NewSyncWriteTime.Equals(current))
+                            using (System.Diagnostics.EventLog eventLog = new System.Diagnostics.EventLog("PanoptoWatchFolderServiceLog", Environment.MachineName, "PanoptoWatchFolderService"))
                             {
                                 if (verbose)
                                 {
-                                    eventLog.WriteEntry("New write time in sync with record", EventLogEntryType.Information, EVENT_ID);
+                                    eventLog.WriteEntry("Checking File: " + fileInfo.Name, EventLogEntryType.Information, EVENT_ID);
                                 }
 
-                                if (syncInfo.FileStableTime >= fileWaitTime)
+                                bool found = false;
+                                bool inSync = false;
+                                bool isStable = false;
+
+                                // Check if file exists in folderInfo
+                                if (folderInfo.ContainsKey(fileInfo.Name))
                                 {
                                     if (verbose)
                                     {
-                                        eventLog.WriteEntry(fileInfo.Name + " is stable", EventLogEntryType.Information, EVENT_ID);
+                                        eventLog.WriteEntry(fileInfo.Name + " found", EventLogEntryType.Information, EVENT_ID);
                                     }
 
-                                    isStable = true;
-                                }
-                                else
-                                {
-                                    int timePassed = (int)Math.Ceiling(elapse / 1000.0);
+                                    found = true;
+                                    SyncInfo syncInfo = folderInfo[fileInfo.Name];
+                                    DateTime stored = syncInfo.LastSyncWriteTime;
+                                    DateTime current = fileInfo.LastWriteTime;
+                                    current = new DateTime(current.Ticks - (current.Ticks % TimeSpan.TicksPerSecond), current.Kind);
 
                                     if (verbose)
                                     {
-                                        eventLog.WriteEntry("Adding time to stable time: " + timePassed, EventLogEntryType.Information, EVENT_ID);
+                                        eventLog.WriteEntry("stored: " + stored.ToString("G") +
+                                                            "\ncurrent: " + current.ToString("G") +
+                                                            "\nNewSyncWriteTime" + syncInfo.NewSyncWriteTime.ToString("G") +
+                                                            "\n" + syncInfo.NewSyncWriteTime.Equals(current), EventLogEntryType.Information, EVENT_ID);
                                     }
 
-                                    syncInfo.FileStableTime += timePassed;
+                                    // Check if file is in sync
+                                    if (stored.Equals(current))
+                                    {
+                                        if (verbose)
+                                        {
+                                            eventLog.WriteEntry(fileInfo.Name + " in sync", EventLogEntryType.Information, EVENT_ID);
+                                        }
+
+                                        inSync = true;
+                                    }
+                                    else
+                                    {
+                                        // Check if file's new LastWriteTime is the same as recorded
+                                        // Wait for given fileWaitTime amount of time before indicating its stable and ready for upload
+                                        // If not the same, wait time will be reseted
+                                        if (syncInfo.NewSyncWriteTime.Equals(current))
+                                        {
+                                            if (verbose)
+                                            {
+                                                eventLog.WriteEntry("New write time in sync with record", EventLogEntryType.Information, EVENT_ID);
+                                            }
+
+                                            if (syncInfo.FileStableTime >= fileWaitTime)
+                                            {
+                                                if (verbose)
+                                                {
+                                                    eventLog.WriteEntry(fileInfo.Name + " is stable", EventLogEntryType.Information, EVENT_ID);
+                                                }
+
+                                                isStable = true;
+                                            }
+                                            else
+                                            {
+                                                int timePassed = (int)Math.Ceiling(elapse / 1000.0);
+
+                                                if (verbose)
+                                                {
+                                                    eventLog.WriteEntry("Adding time to stable time: " + timePassed, EventLogEntryType.Information, EVENT_ID);
+                                                }
+
+                                                syncInfo.FileStableTime += timePassed;
+                                            }
+                                        }
+                                        else
+                                        {
+                                            syncInfo.NewSyncWriteTime = new DateTime(current.Ticks);
+                                            syncInfo.FileStableTime = 0;
+                                        }
+                                    }
+                                }
+
+                                // Add file to sync queue if not in sync
+                                if (!inSync)
+                                {
+                                    if (found)
+                                    {
+                                        if (isStable)
+                                        {
+                                            uploadFiles.Add(fileInfo.FullName, new SyncInfo(folderInfo[fileInfo.Name]));
+                                            folderInfo[fileInfo.Name].LastSyncWriteTime = fileInfo.LastWriteTime;
+                                            folderInfo[fileInfo.Name].FileStableTime = -1;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        if (fileWaitTime == 0)
+                                        {
+                                            uploadFiles.Add(fileInfo.FullName, new SyncInfo(DateTime.MinValue, fileInfo.LastWriteTime, 0));
+                                            folderInfo.Add(fileInfo.Name, new SyncInfo(DateTime.MinValue, fileInfo.LastWriteTime, -1));
+                                        }
+                                        else
+                                        {
+                                            folderInfo.Add(fileInfo.Name, new SyncInfo(DateTime.MinValue, fileInfo.LastWriteTime, 0));
+                                        }
+                                    }
                                 }
                             }
-                            else
-                            {
-                                syncInfo.NewSyncWriteTime = new DateTime(current.Ticks);
-                                syncInfo.FileStableTime = 0;
-                            }
                         }
-                    }
 
-                    // Add file to sync queue if not in sync
-                    if (!inSync)
-                    {
-                        if (found)
-                        {
-                            if (isStable)
-                            {
-                                uploadFiles.Add(fileInfo.FullName, new SyncInfo(folderInfo[fileInfo.Name]));
-                                folderInfo[fileInfo.Name].LastSyncWriteTime = fileInfo.LastWriteTime;
-                                folderInfo[fileInfo.Name].FileStableTime = -1;
-                            }
-                        }
-                        else
-                        {
-                            if (fileWaitTime == 0)
-                            {
-                                uploadFiles.Add(fileInfo.FullName, new SyncInfo(DateTime.MinValue, fileInfo.LastWriteTime, 0));
-                                folderInfo.Add(fileInfo.Name, new SyncInfo(DateTime.MinValue, fileInfo.LastWriteTime, -1));
-                            }
-                            else
-                            {
-                                folderInfo.Add(fileInfo.Name, new SyncInfo(DateTime.MinValue, fileInfo.LastWriteTime, 0));
-                            }
-                        }
+                        // Upload file and store new sync info
+                        ProcessUpload(uploadFiles, folderInfo);
+
+                        SetSyncInfo(folderInfo);
+
+                        EVENT_ID++;
                     }
                 }
-
-                // Upload file and store new sync info
-                ProcessUpload(uploadFiles, folderInfo);
-
-                SetSyncInfo(folderInfo);
-
-                EVENT_ID++;
-            }
+                catch (Exception e)
+                {
+                    using (System.Diagnostics.EventLog eventLog = new System.Diagnostics.EventLog("PanoptoWatchFolderServiceLog", Environment.MachineName, "PanoptoWatchFolderService"))
+                    {
+                        eventLog.WriteEntry("Exception caught on timer completion: " + e.Message, EventLogEntryType.Error, EVENT_ID);
+                    }
+                }
         }
 
         /// <summary>
@@ -355,38 +369,41 @@ namespace WatchFolderService
         /// <param name="folderInfo">Information about file and its last write time</param>
         private void ProcessUpload(Dictionary<string, SyncInfo> uploadFiles, Dictionary<string, SyncInfo> folderInfo)
         {
-            // Upload each file and handle any exception
-            foreach (string filePath in uploadFiles.Keys)
+            using (System.Diagnostics.EventLog eventLog = new System.Diagnostics.EventLog("PanoptoWatchFolderServiceLog", Environment.MachineName, "PanoptoWatchFolderService"))
             {
-                try
+                // Upload each file and handle any exception
+                foreach (string filePath in uploadFiles.Keys)
                 {
-                    // Event Log Record
-                    if (verbose)
+                    try
                     {
-                        eventLog.WriteEntry("Uploading: " + filePath, EventLogEntryType.Information, EVENT_ID);
-                        eventLog.WriteEntry("Upload Param: " + userID + ", " + "USER PASSWORD" + ", " + folderID + ", " + Path.GetFileName(filePath) +
-                                            ", " + filePath + ", " + defaultPartsize, EventLogEntryType.Information, EVENT_ID);
-                    }
+                        // Event Log Record
+                        if (verbose)
+                        {
+                            eventLog.WriteEntry("Uploading: " + filePath, EventLogEntryType.Information, EVENT_ID);
+                            eventLog.WriteEntry("Upload Param: " + userID + ", " + "USER PASSWORD" + ", " + folderID + ", " + Path.GetFileName(filePath) +
+                                                ", " + filePath + ", " + defaultPartsize, EventLogEntryType.Information, EVENT_ID);
+                        }
 
-                    UploadAPIWrapper.UploadFile(userID,
-                                                userKey, 
-                                                folderID, 
-                                                Path.GetFileName(filePath), 
-                                                filePath, 
-                                                defaultPartsize);
-                }
-                catch (Exception ex)
-                {
-                    // Event Log Record
-                    eventLog.WriteEntry("Uploading " + filePath + " Failed: " + ex.Message, 
-                                         EventLogEntryType.Warning, 
-                                         EVENT_ID);
-                    if (verbose)
+                        UploadAPIWrapper.UploadFile(userID,
+                                                    userKey,
+                                                    folderID,
+                                                    Path.GetFileName(filePath),
+                                                    filePath,
+                                                    defaultPartsize);
+                    }
+                    catch (Exception ex)
                     {
-                        eventLog.WriteEntry("Stack Trace: " + ex.StackTrace, EventLogEntryType.Warning, EVENT_ID);
-                    }
+                        // Event Log Record
+                        eventLog.WriteEntry("Uploading " + filePath + " Failed: " + ex.Message,
+                                             EventLogEntryType.Warning,
+                                             EVENT_ID);
+                        if (verbose)
+                        {
+                            eventLog.WriteEntry("Stack Trace: " + ex.StackTrace, EventLogEntryType.Warning, EVENT_ID);
+                        }
 
-                    folderInfo[Path.GetFileName(filePath)] = uploadFiles[filePath];
+                        folderInfo[Path.GetFileName(filePath)] = uploadFiles[filePath];
+                    }
                 }
             }
         }
@@ -411,7 +428,10 @@ namespace WatchFolderService
             {
                 if (verbose)
                 {
-                    eventLog.WriteEntry("Reading Line: " + line, EventLogEntryType.Information, EVENT_ID);
+                    using (System.Diagnostics.EventLog eventLog = new System.Diagnostics.EventLog("PanoptoWatchFolderServiceLog", Environment.MachineName, "PanoptoWatchFolderService"))
+                    {
+                        eventLog.WriteEntry("Reading Line: " + line, EventLogEntryType.Information, EVENT_ID);
+                    }
                 }
 
                 string[] info = line.Split(';');
@@ -446,7 +466,10 @@ namespace WatchFolderService
 
                     if (verbose)
                     {
-                        eventLog.WriteEntry("Writing to InfoFile: " + line, EventLogEntryType.Information, EVENT_ID);
+                        using (System.Diagnostics.EventLog eventLog = new System.Diagnostics.EventLog("PanoptoWatchFolderServiceLog", Environment.MachineName, "PanoptoWatchFolderService"))
+                        {
+                            eventLog.WriteEntry("Writing to InfoFile: " + line, EventLogEntryType.Information, EVENT_ID);
+                        }
                     }
                     
                     infoFile.WriteLine(line);
@@ -538,7 +561,10 @@ namespace WatchFolderService
                 // Event log report
                 if (verbose)
                 {
-                    eventLog.WriteEntry("Unable to access file: " + fileInfo.Name, EventLogEntryType.Warning, EVENT_ID);
+                    using (System.Diagnostics.EventLog eventLog = new System.Diagnostics.EventLog("PanoptoWatchFolderServiceLog", Environment.MachineName, "PanoptoWatchFolderService"))
+                    {
+                        eventLog.WriteEntry("Unable to access file: " + fileInfo.Name, EventLogEntryType.Warning, EVENT_ID);
+                    }
                 }
 
                 return false;
