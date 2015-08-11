@@ -531,13 +531,10 @@ namespace WatchFolderService
                 }
             }
 
-            FileInfo[] result = new FileInfo[resultArray.Count];
-
-            int i = 0;
-            foreach (FileInfo fileInfo in resultArray)
+            FileInfo[] result = (FileInfo[])resultArray.ToArray(typeof(FileInfo));
+            using (System.Diagnostics.EventLog eventLog = new System.Diagnostics.EventLog("PanoptoWatchFolderServiceLog", Environment.MachineName, "PanoptoWatchFolderService"))
             {
-                result[i] = fileInfo;
-                i++;
+                eventLog.WriteEntry("GetFileInfo: arraylist count is "+resultArray.Count+", array length is "+result.Length, EventLogEntryType.Information, EVENT_ID);
             }
 
             return result;
