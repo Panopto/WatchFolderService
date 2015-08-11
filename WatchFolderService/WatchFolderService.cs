@@ -446,8 +446,23 @@ namespace WatchFolderService
                 syncInfo.FileStableTime = Convert.ToInt32(info[3]);
 
                 folderInfo.Add(info[0], syncInfo);
+
+                if (verbose)
+                {
+                    using (System.Diagnostics.EventLog eventLog = new System.Diagnostics.EventLog("PanoptoWatchFolderServiceLog", Environment.MachineName, "PanoptoWatchFolderService"))
+                    {
+                        eventLog.WriteEntry("Line successfully read: " + line, EventLogEntryType.Information, EVENT_ID);
+                    }
+                }
             }
 
+            if (verbose)
+            {
+                using (System.Diagnostics.EventLog eventLog = new System.Diagnostics.EventLog("PanoptoWatchFolderServiceLog", Environment.MachineName, "PanoptoWatchFolderService"))
+                {
+                    eventLog.WriteEntry("GetLastSyncInfo completed", EventLogEntryType.Information, EVENT_ID);
+                }
+            }
             return folderInfo;
         }
 
@@ -530,11 +545,22 @@ namespace WatchFolderService
                     }
                 }
             }
+            if (verbose)
+            {
+                using (System.Diagnostics.EventLog eventLog = new System.Diagnostics.EventLog("PanoptoWatchFolderServiceLog", Environment.MachineName, "PanoptoWatchFolderService"))
+                {
+                    eventLog.WriteEntry("GetFileInfo: resultArray assembled", EventLogEntryType.Information, EVENT_ID);
+                }
+            }
 
             FileInfo[] result = (FileInfo[])resultArray.ToArray(typeof(FileInfo));
-            using (System.Diagnostics.EventLog eventLog = new System.Diagnostics.EventLog("PanoptoWatchFolderServiceLog", Environment.MachineName, "PanoptoWatchFolderService"))
+
+            if (verbose)
             {
-                eventLog.WriteEntry("GetFileInfo: arraylist count is "+resultArray.Count+", array length is "+result.Length, EventLogEntryType.Information, EVENT_ID);
+                using (System.Diagnostics.EventLog eventLog = new System.Diagnostics.EventLog("PanoptoWatchFolderServiceLog", Environment.MachineName, "PanoptoWatchFolderService"))
+                {
+                    eventLog.WriteEntry("GetFileInfo: array has been copied; arraylist count is " + resultArray.Count + ", array length is " + result.Length, EventLogEntryType.Information, EVENT_ID);
+                }
             }
 
             return result;
