@@ -13,11 +13,13 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography.X509Certificates;
 using System.Net;
 using System.Net.NetworkInformation;
+using System.Globalization;
 
 namespace WatchFolderService
 {
     public partial class WatchFolderService : ServiceBase
     {
+        private const string DATETIME_FORMAT = "MM/dd/yyyy HH:mm:ss";
         private static Object INFOFILE_LOCK = new Object(); // Lock for InfoFile that contains sync information
         private static bool SELF_SIGNED = true; // Target server is a self-signed server
         private static bool initialized = false;
@@ -446,23 +448,8 @@ namespace WatchFolderService
                 syncInfo.FileStableTime = Convert.ToInt32(info[3]);
 
                 folderInfo.Add(info[0], syncInfo);
-
-                if (verbose)
-                {
-                    using (System.Diagnostics.EventLog eventLog = new System.Diagnostics.EventLog("PanoptoWatchFolderServiceLog", Environment.MachineName, "PanoptoWatchFolderService"))
-                    {
-                        eventLog.WriteEntry("Line successfully read: " + line, EventLogEntryType.Information, EVENT_ID);
-                    }
-                }
             }
-
-            if (verbose)
-            {
-                using (System.Diagnostics.EventLog eventLog = new System.Diagnostics.EventLog("PanoptoWatchFolderServiceLog", Environment.MachineName, "PanoptoWatchFolderService"))
-                {
-                    eventLog.WriteEntry("GetLastSyncInfo completed", EventLogEntryType.Information, EVENT_ID);
-                }
-            }
+            
             return folderInfo;
         }
 
@@ -476,8 +463,8 @@ namespace WatchFolderService
             {
                 foreach (string fileName in info.Keys)
                 {
-                    string line = fileName + ";" + info[fileName].LastSyncWriteTime.ToString("G") + ";" 
-                                  + info[fileName].NewSyncWriteTime.ToString("G") + ";" + info[fileName].FileStableTime;
+                    string line = fileName + ";" + info[fileName].LastSyncWriteTime.ToString(DATETIME_FORMAT) + ";" 
+                                  + info[fileName].NewSyncWriteTime.ToString(DATETIME_FORMAT) + ";" + info[fileName].FileStableTime;
 
                     if (verbose)
                     {
@@ -499,29 +486,7 @@ namespace WatchFolderService
         /// <returns>DateTime created from timeString</returns>
         private DateTime GetDateTime(string timeString)
         {
-            string[] timeInfo = timeString.Split(' ');
-            string[] dateString = timeInfo[0].Split('/');
-            string[] time = timeInfo[1].Split(':');
-
-            int year = Convert.ToInt16(dateString[2]);
-            int month = Convert.ToInt16(dateString[0]);
-            int date = Convert.ToInt16(dateString[1]);
-
-            int hr = Convert.ToInt16(time[0]);
-            int min = Convert.ToInt16(time[1]);
-            int sec = Convert.ToInt16(time[2]);
-
-            if (timeInfo[2].Equals("PM") && hr != 12)
-            {
-                hr += 12;
-            }
-
-            if (timeInfo[2].Equals("AM") && hr == 12)
-            {
-                hr = 0;
-            }
-
-            return new DateTime(year, month, date, hr, min, sec, DateTimeKind.Local);
+            return DateTime.ParseExact(timeString,DATETIME_FORMAT,CultureInfo.InvariantCulture);
         }
 
         /// <summary>
@@ -545,22 +510,13 @@ namespace WatchFolderService
                     }
                 }
             }
-            if (verbose)
-            {
-                using (System.Diagnostics.EventLog eventLog = new System.Diagnostics.EventLog("PanoptoWatchFolderServiceLog", Environment.MachineName, "PanoptoWatchFolderService"))
-                {
-                    eventLog.WriteEntry("GetFileInfo: resultArray assembled", EventLogEntryType.Information, EVENT_ID);
-                }
-            }
 
-            FileInfo[] result = (FileInfo[])resultArray.ToArray(typeof(FileInfo));
-
-            if (verbose)
+            FileInfo[] result = new FileInfo[resultArray.Count];
+            int i = 0;		
+            foreach (FileInfo fileInfo in resultArray)
             {
-                using (System.Diagnostics.EventLog eventLog = new System.Diagnostics.EventLog("PanoptoWatchFolderServiceLog", Environment.MachineName, "PanoptoWatchFolderService"))
-                {
-                    eventLog.WriteEntry("GetFileInfo: array has been copied; arraylist count is " + resultArray.Count + ", array length is " + result.Length, EventLogEntryType.Information, EVENT_ID);
-                }
+                result[i] = fileInfo;
+                i++;
             }
 
             return result;
