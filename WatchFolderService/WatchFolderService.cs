@@ -109,7 +109,7 @@ namespace WatchFolderService
             extensions = ConfigurationManager.AppSettings["UploadExtensions"].Split(';');
             try
             {
-                maxNumberOfAttempts = Convert.ToInt32(ConfigurationManager.AppSettings["AllowedNumberFailedAttempts"]);
+                maxNumberOfAttempts = Int32.Parse(ConfigurationManager.AppSettings["AllowedNumberFailedAttempts"]);
                 if (maxNumberOfAttempts < 1)
                 {
                     inputValid = false;
@@ -282,7 +282,7 @@ namespace WatchFolderService
                                                             "\n" + syncInfo.NewSyncWriteTime.Equals(current), EventLogEntryType.Information, EVENT_ID);
                                     }
 
-                                    if (maxNumberOfAttempts <= syncInfo.NumberOfAttempts)
+                                    if (syncInfo.NumberOfAttempts >= maxNumberOfAttempts)
                                     {
                                         maxFailedAttemptReached = true;
 
@@ -348,14 +348,11 @@ namespace WatchFolderService
                                 {
                                     if (found)
                                     {
-                                        if (isStable)
+                                        if (isStable && !maxFailedAttemptReached)
                                         {
-                                            if (!maxFailedAttemptReached)
-                                            {
                                                 uploadFiles.Add(fileInfo.FullName, new SyncInfo(folderInfo[fileInfo.Name]));
                                                 folderInfo[fileInfo.Name].LastSyncWriteTime = fileInfo.LastWriteTime;
                                                 folderInfo[fileInfo.Name].FileStableTime = -1;
-                                            }
                                         }
                                     }
                                     else
@@ -467,16 +464,25 @@ namespace WatchFolderService
                 }
 
                 string[] info = line.Split(';');
+                SyncInfo syncInfo = new SyncInfo();
+
+                // Backward Compatibility for older versions with no number of attempts associated in textfile
+                if (info.Length == 4)
+                {
+                    syncInfo.NumberOfAttempts = 0;
+                }
+                else if (info.Length == 5)
+                {
+                    syncInfo.NumberOfAttempts = Convert.ToInt32(info[4]);
+                }
                 if (info.Length != 5)
                 {
                     continue;
                 }
 
-                SyncInfo syncInfo = new SyncInfo();
                 syncInfo.LastSyncWriteTime = GetDateTime(info[1]);
                 syncInfo.NewSyncWriteTime = GetDateTime(info[2]);
                 syncInfo.FileStableTime = Convert.ToInt32(info[3]);
-                syncInfo.NumberOfAttempts = Convert.ToInt32(info[4]);
 
                 folderInfo.Add(info[0], syncInfo);
             }
