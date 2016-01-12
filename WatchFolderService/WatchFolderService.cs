@@ -31,12 +31,13 @@ namespace WatchFolderService
         private string userID = null;
         private string userKey = null;
         private string folderID = null;
-        private int elapse = 60000;
+        private int elapse = 6000000;
         private int fileWaitTime = 60;
         private long defaultPartsize = 1048576;
         private string[] extensions;
         private bool inputValid = true;
         private string inputFailureMessage = "";
+        private int maxNumberOfAttempts = 3;
 
         // Event log variables
         private static int EVENT_ID = 1;
@@ -106,7 +107,20 @@ namespace WatchFolderService
                 inputFailureMessage += "\n\tVerbose value invalid";
             } 
             extensions = ConfigurationManager.AppSettings["UploadExtensions"].Split(';');
-
+            try
+            {
+                maxNumberOfAttempts = Int32.Parse(ConfigurationManager.AppSettings["AllowedNumberFailedAttempts"]);
+                if (maxNumberOfAttempts < 1)
+                {
+                    inputValid = false;
+                    inputFailureMessage += "\n\tAllowedNumberFailedAttempts invalid";
+                }
+            }
+            catch (Exception)
+            {
+                inputValid = false;
+                inputFailureMessage += "\n\tAllowedNumberFailedAttempts invalid";
+            }
             Common.SetServer(server);
 
             if (SELF_SIGNED)
@@ -245,7 +259,7 @@ namespace WatchFolderService
                                 bool found = false;
                                 bool inSync = false;
                                 bool isStable = false;
-
+                                bool maxFailedAttemptReached = false;
                                 // Check if file exists in folderInfo
                                 if (folderInfo.ContainsKey(fileInfo.Name))
                                 {
@@ -266,6 +280,16 @@ namespace WatchFolderService
                                                             "\ncurrent: " + current.ToString("G") +
                                                             "\nNewSyncWriteTime" + syncInfo.NewSyncWriteTime.ToString("G") +
                                                             "\n" + syncInfo.NewSyncWriteTime.Equals(current), EventLogEntryType.Information, EVENT_ID);
+                                    }
+
+                                    if (syncInfo.NumberOfAttempts >= maxNumberOfAttempts)
+                                    {
+                                        maxFailedAttemptReached = true;
+
+                                        if (verbose)
+                                        {
+                                            eventLog.WriteEntry("Max retry attempts has been reached.", EventLogEntryType.Information, EVENT_ID);
+                                        }
                                     }
 
                                     // Check if file is in sync
@@ -324,11 +348,11 @@ namespace WatchFolderService
                                 {
                                     if (found)
                                     {
-                                        if (isStable)
+                                        if (isStable && !maxFailedAttemptReached)
                                         {
-                                            uploadFiles.Add(fileInfo.FullName, new SyncInfo(folderInfo[fileInfo.Name]));
-                                            folderInfo[fileInfo.Name].LastSyncWriteTime = fileInfo.LastWriteTime;
-                                            folderInfo[fileInfo.Name].FileStableTime = -1;
+                                                uploadFiles.Add(fileInfo.FullName, new SyncInfo(folderInfo[fileInfo.Name]));
+                                                folderInfo[fileInfo.Name].LastSyncWriteTime = fileInfo.LastWriteTime;
+                                                folderInfo[fileInfo.Name].FileStableTime = -1;
                                         }
                                     }
                                     else
@@ -404,6 +428,9 @@ namespace WatchFolderService
                             eventLog.WriteEntry("Stack Trace: " + ex.StackTrace, EventLogEntryType.Warning, EVENT_ID);
                         }
 
+                        // Increment number of attempt
+                        uploadFiles[filePath].NumberOfAttempts++;
+
                         folderInfo[Path.GetFileName(filePath)] = uploadFiles[filePath];
                     }
                 }
@@ -437,12 +464,22 @@ namespace WatchFolderService
                 }
 
                 string[] info = line.Split(';');
-                if (info.Length != 4)
+                SyncInfo syncInfo = new SyncInfo();
+
+                // Backward Compatibility for older versions with no number of attempts associated in textfile
+                if (info.Length == 4)
+                {
+                    syncInfo.NumberOfAttempts = 0;
+                }
+                else if (info.Length == 5)
+                {
+                    syncInfo.NumberOfAttempts = Convert.ToInt32(info[4]);
+                }
+                if (info.Length != 5)
                 {
                     continue;
                 }
 
-                SyncInfo syncInfo = new SyncInfo();
                 syncInfo.LastSyncWriteTime = GetDateTime(info[1]);
                 syncInfo.NewSyncWriteTime = GetDateTime(info[2]);
                 syncInfo.FileStableTime = Convert.ToInt32(info[3]);
@@ -464,7 +501,8 @@ namespace WatchFolderService
                 foreach (string fileName in info.Keys)
                 {
                     string line = fileName + ";" + info[fileName].LastSyncWriteTime.ToString(DATETIME_FORMAT) + ";" 
-                                  + info[fileName].NewSyncWriteTime.ToString(DATETIME_FORMAT) + ";" + info[fileName].FileStableTime;
+                                  + info[fileName].NewSyncWriteTime.ToString(DATETIME_FORMAT) + ";" + info[fileName].FileStableTime
+                                  + ";" + info[fileName].NumberOfAttempts;
 
                     if (verbose)
                     {
