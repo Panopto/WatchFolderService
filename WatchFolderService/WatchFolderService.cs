@@ -113,13 +113,13 @@ namespace WatchFolderService
                 if (maxNumberOfAttempts < 1)
                 {
                     inputValid = false;
-                    inputFailureMessage += "\n\tElapseTime invalid";
+                    inputFailureMessage += "\n\tAllowedNumberFailedAttempts invalid";
                 }
             }
             catch (Exception)
             {
                 inputValid = false;
-                inputFailureMessage += "\n\tElapseTime invalid";
+                inputFailureMessage += "\n\tAllowedNumberFailedAttempts invalid";
             }
             Common.SetServer(server);
 
