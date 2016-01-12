@@ -18,6 +18,7 @@ namespace WatchFolderService
             LastSyncWriteTime = new DateTime(writeTime.Ticks);
             NewSyncWriteTime = new DateTime(newWriteTime.Ticks);
             FileStableTime = stableTime;
+            NumberOfAttempts = 0;
         }
 
         public SyncInfo(SyncInfo other)
@@ -25,6 +26,7 @@ namespace WatchFolderService
             LastSyncWriteTime = new DateTime(other.LastSyncWriteTime.Ticks);
             NewSyncWriteTime = new DateTime(other.NewSyncWriteTime.Ticks);
             FileStableTime = other.FileStableTime;
+            NumberOfAttempts = other.NumberOfAttempts;
         }
 
         public DateTime LastSyncWriteTime { get; set; }
@@ -32,5 +34,7 @@ namespace WatchFolderService
         public DateTime NewSyncWriteTime { get; set; }
 
         public int FileStableTime { get; set; }
+
+        public int NumberOfAttempts { get; set; }
     }
 }

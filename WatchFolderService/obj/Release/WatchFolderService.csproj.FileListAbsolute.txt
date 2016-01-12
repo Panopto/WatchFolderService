@@ -8,3 +8,12 @@ C:\Users\dliu\Documents\Visual Studio 2012\Projects\WatchFolderService\WatchFold
 C:\Users\dliu\Documents\Visual Studio 2012\Projects\WatchFolderService\WatchFolderService\obj\Release\WatchFolderService.csproj.GenerateResource.Cache
 C:\Users\dliu\Documents\Visual Studio 2012\Projects\WatchFolderService\WatchFolderService\obj\Release\WatchFolderService.exe
 C:\Users\dliu\Documents\Visual Studio 2012\Projects\WatchFolderService\WatchFolderService\obj\Release\WatchFolderService.pdb
+C:\Users\swong\Documents\GitHub\WatchFolderService\WatchFolderService\bin\Release\WatchFolderService.exe.config
+C:\Users\swong\Documents\GitHub\WatchFolderService\WatchFolderService\bin\Release\WatchFolderService.exe
+C:\Users\swong\Documents\GitHub\WatchFolderService\WatchFolderService\bin\Release\WatchFolderService.pdb
+C:\Users\swong\Documents\GitHub\WatchFolderService\WatchFolderService\obj\Release\WatchFolderService.ProjectInstaller.resources
+C:\Users\swong\Documents\GitHub\WatchFolderService\WatchFolderService\obj\Release\WatchFolderService.WatchFolderService.resources
+C:\Users\swong\Documents\GitHub\WatchFolderService\WatchFolderService\obj\Release\WatchFolderService.csproj.GenerateResource.Cache
+C:\Users\swong\Documents\GitHub\WatchFolderService\WatchFolderService\obj\Release\WatchFolderService.exe
+C:\Users\swong\Documents\GitHub\WatchFolderService\WatchFolderService\obj\Release\WatchFolderService.pdb
+C:\Users\swong\Documents\GitHub\WatchFolderService\WatchFolderService\obj\Release\WatchFolderService.csprojResolveAssemblyReference.cache
