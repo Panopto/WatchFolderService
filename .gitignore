@@ -1,0 +1,7 @@
+.git
+.vs
+packages/
+bin/
+obj/
+WatchFolderServiceSetup/WatchFolderServiceSetup/Express/
+_isconfig.xml
