@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+	<Product Id="*" Name="PanoptoWatchFolderService" Version="1.1.0.0" Manufacturer="Panopto" Language="1033" UpgradeCode="841957fd-9904-43a3-8c78-84b9a7c8219e">
+		<Package InstallerVersion="300" Compressed="yes" InstallScope="perMachine" />
+
+		<MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+		<MediaTemplate />
+
+    <!-- Directory structure -->
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFilesFolder">
+        <Directory Id="PanoptoFolder" Name="Panopto">
+          <Directory Id="InstallFolder" Name="PanoptoWatchFolderService" />
+        </Directory>
+      </Directory>
+    </Directory>
+
+    <!-- Add files + service installation -->
+    <ComponentGroup Id="ProductComponents" Directory="InstallFolder">
+      <Component Id="WatchFolderService.exe" Guid="d12899d0-bbe7-4136-9858-809b07c926bd">
+        <File Id="WatchFolderService.exe" Source="..\WatchFolderService\bin\$(var.Configuration)\WatchFolderService.exe" KeyPath="yes" />
+        <ServiceInstall
+          Id="ServiceInstaller"
+          Type="ownProcess"
+          Vital="yes"
+          Name="PanoptoWatchFolderService"
+          DisplayName="Panopto Watch Folder Service"
+          Description="Service to watch the designated folder and upload any files with designated extentions"
+          Start="auto"
+          Account="LocalSystem"
+          ErrorControl="normal"
+          Interactive="no">
+        </ServiceInstall>
+        <!-- Service won't start on installation because Start attribute does not exist in ServiceControl. -->
+        <ServiceControl
+          Id="StartService"
+          Stop="both"
+          Remove="uninstall"
+          Name="PanoptoWatchFolderService"
+          Wait="yes" />
+      </Component>
+      <Component Id="WatchFolderService.exe.config" Guid="bdb30cfe-e969-447d-a6cd-2a9444b872b8">
+        <File Id="WatchFolderService.exe.config" Source="..\WatchFolderService\bin\$(var.Configuration)\WatchFolderService.exe.config" KeyPath="yes" />
+      </Component>
+      <Component Id="AWSSDK.dll" Guid="802c91f9-d757-4e34-9b95-59a52c178379">
+        <File Id="AWSSDK.dll" Source="..\WatchFolderService\bin\$(var.Configuration)\AWSSDK.dll" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+
+    <!-- Action -->
+    <Feature Id="Service" Title="Panopto Watch Folder Service" Level="1">
+			<ComponentGroupRef Id="ProductComponents" />
+		</Feature>
+    
+	</Product>
+</Wix>

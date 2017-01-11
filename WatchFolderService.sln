@@ -1,42 +1,26 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 2012
+# Visual Studio 14
+VisualStudioVersion = 14.0.25420.1
+MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WatchFolderService", "WatchFolderService\WatchFolderService.csproj", "{748CBCF1-90D9-45CD-8808-C71E83D02361}"
 EndProject
-Project("{6141683F-8A12-4E36-9623-2EB02B2C2303}") = "WatchFolderServiceSetup", "WatchFolderServiceSetup\WatchFolderServiceSetup.isproj", "{3E0BFECA-EC6C-4F9A-ABDA-614E8D71487B}"
-	ProjectSection(ProjectDependencies) = postProject
-		{748CBCF1-90D9-45CD-8808-C71E83D02361} = {748CBCF1-90D9-45CD-8808-C71E83D02361}
-	EndProjectSection
+Project("{930C7802-8A8C-48F9-8165-68863BCCD9DD}") = "WatchFolderServiceInstaller", "WatchFolderServiceInstaller\WatchFolderServiceInstaller.wixproj", "{910D74AC-C170-4A46-B784-3078C105C50C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
-		CD_ROM|Any CPU = CD_ROM|Any CPU
 		Debug|Any CPU = Debug|Any CPU
-		DVD-5|Any CPU = DVD-5|Any CPU
 		Release|Any CPU = Release|Any CPU
-		SingleImage|Any CPU = SingleImage|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{748CBCF1-90D9-45CD-8808-C71E83D02361}.CD_ROM|Any CPU.ActiveCfg = Release|Any CPU
-		{748CBCF1-90D9-45CD-8808-C71E83D02361}.CD_ROM|Any CPU.Build.0 = Release|Any CPU
 		{748CBCF1-90D9-45CD-8808-C71E83D02361}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{748CBCF1-90D9-45CD-8808-C71E83D02361}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{748CBCF1-90D9-45CD-8808-C71E83D02361}.DVD-5|Any CPU.ActiveCfg = Debug|Any CPU
-		{748CBCF1-90D9-45CD-8808-C71E83D02361}.DVD-5|Any CPU.Build.0 = Debug|Any CPU
 		{748CBCF1-90D9-45CD-8808-C71E83D02361}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{748CBCF1-90D9-45CD-8808-C71E83D02361}.Release|Any CPU.Build.0 = Release|Any CPU
-		{748CBCF1-90D9-45CD-8808-C71E83D02361}.SingleImage|Any CPU.ActiveCfg = Release|Any CPU
-		{748CBCF1-90D9-45CD-8808-C71E83D02361}.SingleImage|Any CPU.Build.0 = Release|Any CPU
-		{3E0BFECA-EC6C-4F9A-ABDA-614E8D71487B}.CD_ROM|Any CPU.ActiveCfg = CD_ROM
-		{3E0BFECA-EC6C-4F9A-ABDA-614E8D71487B}.CD_ROM|Any CPU.Build.0 = CD_ROM
-		{3E0BFECA-EC6C-4F9A-ABDA-614E8D71487B}.Debug|Any CPU.ActiveCfg = DVD-5
-		{3E0BFECA-EC6C-4F9A-ABDA-614E8D71487B}.Debug|Any CPU.Build.0 = DVD-5
-		{3E0BFECA-EC6C-4F9A-ABDA-614E8D71487B}.DVD-5|Any CPU.ActiveCfg = DVD-5
-		{3E0BFECA-EC6C-4F9A-ABDA-614E8D71487B}.DVD-5|Any CPU.Build.0 = DVD-5
-		{3E0BFECA-EC6C-4F9A-ABDA-614E8D71487B}.Release|Any CPU.ActiveCfg = SingleImage
-		{3E0BFECA-EC6C-4F9A-ABDA-614E8D71487B}.Release|Any CPU.Build.0 = SingleImage
-		{3E0BFECA-EC6C-4F9A-ABDA-614E8D71487B}.SingleImage|Any CPU.ActiveCfg = SingleImage
-		{3E0BFECA-EC6C-4F9A-ABDA-614E8D71487B}.SingleImage|Any CPU.Build.0 = SingleImage
+		{910D74AC-C170-4A46-B784-3078C105C50C}.Debug|Any CPU.ActiveCfg = Debug|x86
+		{910D74AC-C170-4A46-B784-3078C105C50C}.Debug|Any CPU.Build.0 = Debug|x86
+		{910D74AC-C170-4A46-B784-3078C105C50C}.Release|Any CPU.ActiveCfg = Release|x86
+		{910D74AC-C170-4A46-B784-3078C105C50C}.Release|Any CPU.Build.0 = Release|x86
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
