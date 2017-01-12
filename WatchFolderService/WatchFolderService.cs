@@ -585,7 +585,7 @@ namespace WatchFolderService
         /// <summary>
         /// Service state status codes
         /// </summary>
-        public enum ServiceState
+        public enum ServiceState : uint
         {
             SERVICE_STOPPED = 0x00000001,
             SERVICE_START_PENDING = 0x00000002,
@@ -602,13 +602,13 @@ namespace WatchFolderService
         [StructLayout(LayoutKind.Sequential)]
         public struct ServiceStatus
         {
-            public long dwServiceType;
+            public uint dwServiceType;
             public ServiceState dwCurrentState;
-            public long dwControlsAccepted;
-            public long dwWin32ExitCode;
-            public long dwServiceSpecificExitCode;
-            public long dwCheckPoint;
-            public long dwWaitHint;
+            public uint dwControlsAccepted;
+            public uint dwWin32ExitCode;
+            public uint dwServiceSpecificExitCode;
+            public uint dwCheckPoint;
+            public uint dwWaitHint;
         };
 
         /// <summary>
