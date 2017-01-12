@@ -12,14 +12,10 @@ namespace WatchFolderService
         /// <summary>
         /// The main entry point for the application.
         /// </summary>
-        static void Main()
+        static void Main(string[] args)
         {
-            ServiceBase[] ServicesToRun;
-            ServicesToRun = new ServiceBase[] 
-            { 
-                new WatchFolderService() 
-            };
-            ServiceBase.Run(ServicesToRun);
+            WatchFolderService service = new WatchFolderService();
+            ServiceBase.Run(service);
         }
     }
 }
