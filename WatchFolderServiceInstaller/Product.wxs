@@ -3,8 +3,12 @@
 	<Product Id="*" Name="PanoptoWatchFolderService" Version="1.1.0.0" Manufacturer="Panopto" Language="1033" UpgradeCode="841957fd-9904-43a3-8c78-84b9a7c8219e">
 		<Package InstallerVersion="300" Compressed="yes" InstallScope="perMachine" />
 
-		<MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
-		<MediaTemplate />
+		<MajorUpgrade
+      AllowDowngrades="no"
+      DowngradeErrorMessage="A newer version of [ProductName] is already installed." 
+      AllowSameVersionUpgrades="yes" />
+    <!-- AllowSameVersionUpgrades allows easier development iteration. This causes ICE61 warning, but it may be ignored. -->
+    <MediaTemplate />
 
     <!-- Directory structure -->
     <Directory Id="TARGETDIR" Name="SourceDir">
