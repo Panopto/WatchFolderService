@@ -28,9 +28,9 @@ namespace WatchFolderService
             {
                 adminAuthCookie = Common.LogonAndGetCookie(userName, userPassword);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                throw new InvalidDataException("Login Failed: Cannot connect to server or invalid user name and password combination");
+                throw new InvalidDataException("Login Failed: Cannot connect to server or invalid user name and password combination", ex);
             }
 
             string sessionID;
@@ -38,9 +38,9 @@ namespace WatchFolderService
             {
                 sessionID = CreateSession(adminAuthCookie, folderID, sessionName);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                throw new InvalidDataException("Create Session Failed: Invalid folder ID");
+                throw new InvalidDataException("Create Session Failed: Invalid folder ID", ex);
             }
 
             Upload uploadInfo;
@@ -50,7 +50,7 @@ namespace WatchFolderService
             }
             catch (Exception ex)
             {
-                throw new InvalidDataException("Create Upload Failed: " + ex.Message);
+                throw new InvalidDataException("Create Upload Failed: " + ex.Message, ex);
             }
 
             try
@@ -59,7 +59,7 @@ namespace WatchFolderService
             }
             catch (Exception ex)
             {
-                throw new InvalidDataException("Upload File Failed: " + ex.Message);
+                throw new InvalidDataException("Upload File Failed: " + ex.Message, ex);
             }
 
             try
@@ -68,7 +68,7 @@ namespace WatchFolderService
             }
             catch (Exception ex)
             {
-                throw new InvalidDataException("Finalize Upload Failed: " + ex.Message);
+                throw new InvalidDataException("Finalize Upload Failed: " + ex.Message, ex);
             }
         }
 
