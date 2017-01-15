@@ -1,26 +1,26 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-	<Product Id="*" Name="PanoptoWatchFolderService" Version="1.1.0.0" Manufacturer="Panopto" Language="1033" UpgradeCode="841957fd-9904-43a3-8c78-84b9a7c8219e">
+	<Product Id="*" Name="Panopto Watch Folder Service" Version="1.1.1.0" Manufacturer="Panopto" Language="1033" UpgradeCode="841957fd-9904-43a3-8c78-84b9a7c8219e">
 		<Package InstallerVersion="300" Compressed="yes" InstallScope="perMachine" />
+    <Media Id="1" Cabinet="Cab1.cab" EmbedCab="yes" />
 
-		<MajorUpgrade
-      AllowDowngrades="no"
-      DowngradeErrorMessage="A newer version of [ProductName] is already installed." 
-      AllowSameVersionUpgrades="yes" />
     <!-- AllowSameVersionUpgrades allows easier development iteration. This causes ICE61 warning, but it may be ignored. -->
-    <MediaTemplate />
+    <MajorUpgrade
+      AllowDowngrades="no"
+      DowngradeErrorMessage="A newer version of [ProductName] is already installed."
+      AllowSameVersionUpgrades="yes" />
 
     <!-- Directory structure -->
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="ProgramFilesFolder">
         <Directory Id="PanoptoFolder" Name="Panopto">
-          <Directory Id="InstallFolder" Name="PanoptoWatchFolderService" />
+          <Directory Id="INSTALLDIR" Name="PanoptoWatchFolderService" />
         </Directory>
       </Directory>
     </Directory>
 
     <!-- Add files + service installation -->
-    <ComponentGroup Id="ProductComponents" Directory="InstallFolder">
+    <ComponentGroup Id="ProductComponents" Directory="INSTALLDIR">
       <Component Id="WatchFolderService.exe" Guid="d12899d0-bbe7-4136-9858-809b07c926bd">
         <File Id="WatchFolderService.exe" Source="..\WatchFolderService\bin\$(var.Configuration)\WatchFolderService.exe" KeyPath="yes" />
         <ServiceInstall
@@ -51,11 +51,26 @@
       </Component>
     </ComponentGroup>
 
-
     <!-- Action -->
     <Feature Id="Service" Title="Panopto Watch Folder Service" Level="1">
 			<ComponentGroupRef Id="ProductComponents" />
 		</Feature>
-    
-	</Product>
+
+    <!-- Use WiX pre-defined sequence -->
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLDIR" />
+    <UI>
+      <UIRef Id="WixUI_InstallDir" />
+      <!-- Customize to skip license dialog -->
+      <Publish Dialog="WelcomeDlg"
+               Control="Next"
+               Event="NewDialog"
+               Value="InstallDirDlg"
+               Order="2">1</Publish>
+      <Publish Dialog="InstallDirDlg"
+               Control="Back"
+               Event="NewDialog"
+               Value="WelcomeDlg"
+               Order="2">1</Publish>
+    </UI>
+  </Product>
 </Wix>
