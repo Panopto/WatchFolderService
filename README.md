@@ -42,7 +42,8 @@ In addition, Visual Studio automatically downloads AWS SDK (version 2) via NuGet
 
 Tip for development
 -------------------
-You may install and uninstall the service without installer. 
+You may install and uninstall the service without installer.
+
 1. Open the Developer Command Prompt in Visual Studio Tools
 1. Navigate to the folder containing the .exe file for the service
 1. Use the command: installutil.exe WatchFolderService.exe
