@@ -15,7 +15,15 @@ namespace WatchFolderService
         static void Main(string[] args)
         {
             WatchFolderService service = new WatchFolderService();
-            ServiceBase.Run(service);
+
+            if (Environment.UserInteractive)
+            {
+                service.RunInteractive(args);
+            }
+            else
+            {
+                ServiceBase.Run(service);
+            }
         }
     }
 }

@@ -9,14 +9,13 @@ using System.Security.Cryptography.X509Certificates;
 using System.Net;
 using System.Globalization;
 using System.ComponentModel;
+using System.Threading;
 
 namespace WatchFolderService
 {
     public partial class WatchFolderService : ServiceBase
     {
-
         private const string DATETIME_FORMAT = "MM/dd/yyyy HH:mm:ss";
-        private static Object INFOFILE_LOCK = new Object(); // Lock for InfoFile that contains sync information
         private static bool SELF_SIGNED = false; // Set this if the server does not have the cert from trusted root
         private static bool initialized = false;
 
@@ -27,7 +26,9 @@ namespace WatchFolderService
         private string userID = null;
         private string userKey = null;
         private string folderID = null;
-        private int elapse = 6000000;
+        private TimeSpan monitorInterval = TimeSpan.Zero;
+        private Thread workerThread = null;
+        private ManualResetEvent stopRequested = null;
         private int fileWaitTime = 60;
         private long defaultPartsize = 1048576;
         private string[] extensions;
@@ -67,8 +68,9 @@ namespace WatchFolderService
             folderID = ConfigurationManager.AppSettings["FolderID"];
             try
             {
-                elapse = Convert.ToInt32(ConfigurationManager.AppSettings["ElapseTime"]);
-                if (elapse < 0)
+                this.monitorInterval = TimeSpan.FromMilliseconds(
+                    Convert.ToInt32(ConfigurationManager.AppSettings["ElapseTime"]));
+                if (this.monitorInterval <= TimeSpan.Zero)
                 {
                     inputValid = false;
                     inputFailureMessage += "\n\tElapseTime invalid";
@@ -140,9 +142,12 @@ namespace WatchFolderService
             }
         }
 
-        public void StartForDebug(string[] args)
+        public void RunInteractive(string[] args)
         {
             this.OnStart(args);
+            Console.WriteLine("Press any key to stop WatchFolderService in interactive mode.");
+            Console.Read();
+            this.OnStop();
         }
 
         /// <summary>
@@ -194,11 +199,10 @@ namespace WatchFolderService
 
             if (!hasInvalidInput)
             {
-                // Setup timer
-                System.Timers.Timer timer = new System.Timers.Timer();
-                timer.Interval = elapse;
-                timer.Elapsed += new System.Timers.ElapsedEventHandler(OnTimer);
-                timer.Start();
+                // Start up worker thread
+                this.stopRequested = new ManualResetEvent(false);
+                this.workerThread = new Thread(this.WorkerThreadFunction);
+                this.workerThread.Start();
             }
 
             // Update the service state to Running.
@@ -216,6 +220,14 @@ namespace WatchFolderService
         /// </summary>
         protected override void OnStop()
         {
+            // Stop worker thread
+            if (this.workerThread != null)
+            {
+                this.EventLog.WriteEntry("Service stop requested. Waiting for the worker thread to exit."); // Event Log Record
+                this.stopRequested.Set();
+                this.workerThread.Join();
+            }
+
             // Update the service state to Start Pending.
             ServiceStatus serviceStatus = new ServiceStatus();
             serviceStatus.dwCurrentState = ServiceState.SERVICE_STOP_PENDING;
@@ -230,160 +242,155 @@ namespace WatchFolderService
             SetServiceStatus(this.ServiceHandle, ref serviceStatus);
         }
 
-        public void StopForDebug()
-        {
-            this.OnStop();
-        }
-
         /// <summary>
-        /// Service event that syncs the folder that happens on given interval
+        /// Worker thread that syncs the folder that happens on given interval
         /// </summary>
-        /// <param name="sender">Timer object</param>
-        /// <param name="args">Arguments</param>
-        private void OnTimer(object sender, System.Timers.ElapsedEventArgs args)
+        private void WorkerThreadFunction()
         {
+            while (!this.stopRequested.WaitOne(0))
+            {
                 try
                 {
-                    // Hold lock on sync info file to prevent data race
-                    lock (INFOFILE_LOCK)
-                    {
-                        // Obtain info in sync info file
-                        DirectoryInfo dirInfo = new DirectoryInfo(Path.GetFullPath(watchFolder));
-                        Dictionary<string, SyncInfo> folderInfo = GetLastSyncInfo();
-                        Dictionary<string, SyncInfo> uploadFiles = new Dictionary<string, SyncInfo>();
+                    // Obtain info in sync info file
+                    DirectoryInfo dirInfo = new DirectoryInfo(Path.GetFullPath(watchFolder));
+                    Dictionary<string, SyncInfo> folderInfo = GetLastSyncInfo();
+                    Dictionary<string, SyncInfo> uploadFiles = new Dictionary<string, SyncInfo>();
 
-                        // Check files in folder for sync
-                        foreach (FileInfo fileInfo in GetFileInfo(dirInfo))
+                    // Check files in folder for sync
+                    foreach (FileInfo fileInfo in GetFileInfo(dirInfo))
+                    {
+                        if (verbose)
+                        {
+                            this.EventLog.WriteEntry("Checking File: " + fileInfo.Name, EventLogEntryType.Information);
+                        }
+
+                        bool found = false;
+                        bool inSync = false;
+                        bool isStable = false;
+                        bool maxFailedAttemptReached = false;
+                        // Check if file exists in folderInfo
+                        if (folderInfo.ContainsKey(fileInfo.Name))
                         {
                             if (verbose)
                             {
-                                this.EventLog.WriteEntry("Checking File: " + fileInfo.Name, EventLogEntryType.Information);
+                                this.EventLog.WriteEntry(fileInfo.Name + " found", EventLogEntryType.Information);
                             }
 
-                            bool found = false;
-                            bool inSync = false;
-                            bool isStable = false;
-                            bool maxFailedAttemptReached = false;
-                            // Check if file exists in folderInfo
-                            if (folderInfo.ContainsKey(fileInfo.Name))
+                            found = true;
+                            SyncInfo syncInfo = folderInfo[fileInfo.Name];
+                            DateTime stored = syncInfo.LastSyncWriteTime;
+                            DateTime current = fileInfo.LastWriteTime;
+                            current = new DateTime(current.Ticks - (current.Ticks % TimeSpan.TicksPerSecond), current.Kind);
+
+                            if (verbose)
+                            {
+                                this.EventLog.WriteEntry("stored: " + stored.ToString("G") +
+                                                    "\ncurrent: " + current.ToString("G") +
+                                                    "\nNewSyncWriteTime" + syncInfo.NewSyncWriteTime.ToString("G") +
+                                                    "\n" + syncInfo.NewSyncWriteTime.Equals(current), EventLogEntryType.Information);
+                            }
+
+                            if (syncInfo.NumberOfAttempts >= maxNumberOfAttempts)
+                            {
+                                maxFailedAttemptReached = true;
+
+                                if (verbose)
+                                {
+                                    this.EventLog.WriteEntry("Max retry attempts has been reached.", EventLogEntryType.Information);
+                                }
+                            }
+
+                            // Check if file is in sync
+                            if (stored.Equals(current))
                             {
                                 if (verbose)
                                 {
-                                    this.EventLog.WriteEntry(fileInfo.Name + " found", EventLogEntryType.Information);
+                                    this.EventLog.WriteEntry(fileInfo.Name + " in sync", EventLogEntryType.Information);
                                 }
 
-                                found = true;
-                                SyncInfo syncInfo = folderInfo[fileInfo.Name];
-                                DateTime stored = syncInfo.LastSyncWriteTime;
-                                DateTime current = fileInfo.LastWriteTime;
-                                current = new DateTime(current.Ticks - (current.Ticks % TimeSpan.TicksPerSecond), current.Kind);
-
-                                if (verbose)
-                                {
-                                    this.EventLog.WriteEntry("stored: " + stored.ToString("G") +
-                                                        "\ncurrent: " + current.ToString("G") +
-                                                        "\nNewSyncWriteTime" + syncInfo.NewSyncWriteTime.ToString("G") +
-                                                        "\n" + syncInfo.NewSyncWriteTime.Equals(current), EventLogEntryType.Information);
-                                }
-
-                                if (syncInfo.NumberOfAttempts >= maxNumberOfAttempts)
-                                {
-                                    maxFailedAttemptReached = true;
-
-                                    if (verbose)
-                                    {
-                                        this.EventLog.WriteEntry("Max retry attempts has been reached.", EventLogEntryType.Information);
-                                    }
-                                }
-
-                                // Check if file is in sync
-                                if (stored.Equals(current))
+                                inSync = true;
+                            }
+                            else
+                            {
+                                // Check if file's new LastWriteTime is the same as recorded
+                                // Wait for given fileWaitTime amount of time before indicating its stable and ready for upload
+                                // If not the same, wait time will be reseted
+                                if (syncInfo.NewSyncWriteTime.Equals(current))
                                 {
                                     if (verbose)
                                     {
-                                        this.EventLog.WriteEntry(fileInfo.Name + " in sync", EventLogEntryType.Information);
+                                        this.EventLog.WriteEntry("New write time in sync with record", EventLogEntryType.Information);
                                     }
 
-                                    inSync = true;
-                                }
-                                else
-                                {
-                                    // Check if file's new LastWriteTime is the same as recorded
-                                    // Wait for given fileWaitTime amount of time before indicating its stable and ready for upload
-                                    // If not the same, wait time will be reseted
-                                    if (syncInfo.NewSyncWriteTime.Equals(current))
+                                    if (syncInfo.FileStableTime >= fileWaitTime)
                                     {
                                         if (verbose)
                                         {
-                                            this.EventLog.WriteEntry("New write time in sync with record", EventLogEntryType.Information);
+                                            this.EventLog.WriteEntry(fileInfo.Name + " is stable", EventLogEntryType.Information);
                                         }
 
-                                        if (syncInfo.FileStableTime >= fileWaitTime)
-                                        {
-                                            if (verbose)
-                                            {
-                                                this.EventLog.WriteEntry(fileInfo.Name + " is stable", EventLogEntryType.Information);
-                                            }
-
-                                            isStable = true;
-                                        }
-                                        else
-                                        {
-                                            int timePassed = (int)Math.Ceiling(elapse / 1000.0);
-
-                                            if (verbose)
-                                            {
-                                                this.EventLog.WriteEntry("Adding time to stable time: " + timePassed, EventLogEntryType.Information);
-                                            }
-
-                                            syncInfo.FileStableTime += timePassed;
-                                        }
+                                        isStable = true;
                                     }
                                     else
                                     {
-                                        syncInfo.NewSyncWriteTime = new DateTime(current.Ticks);
-                                        syncInfo.FileStableTime = 0;
-                                    }
-                                }
-                            }
+                                        int timePassed = (int)this.monitorInterval.TotalSeconds;
 
-                            // Add file to sync queue if not in sync
-                            if (!inSync)
-                            {
-                                if (found)
-                                {
-                                    if (isStable && !maxFailedAttemptReached)
-                                    {
-                                            uploadFiles.Add(fileInfo.FullName, new SyncInfo(folderInfo[fileInfo.Name]));
-                                            folderInfo[fileInfo.Name].LastSyncWriteTime = fileInfo.LastWriteTime;
-                                            folderInfo[fileInfo.Name].FileStableTime = -1;
+                                        if (verbose)
+                                        {
+                                            this.EventLog.WriteEntry("Adding time to stable time: " + timePassed, EventLogEntryType.Information);
+                                        }
+
+                                        syncInfo.FileStableTime += timePassed;
                                     }
                                 }
                                 else
                                 {
-                                    if (fileWaitTime == 0)
-                                    {
-                                        uploadFiles.Add(fileInfo.FullName, new SyncInfo(DateTime.MinValue, fileInfo.LastWriteTime, 0));
-                                        folderInfo.Add(fileInfo.Name, new SyncInfo(DateTime.MinValue, fileInfo.LastWriteTime, -1));
-                                    }
-                                    else
-                                    {
-                                        folderInfo.Add(fileInfo.Name, new SyncInfo(DateTime.MinValue, fileInfo.LastWriteTime, 0));
-                                    }
+                                    syncInfo.NewSyncWriteTime = new DateTime(current.Ticks);
+                                    syncInfo.FileStableTime = 0;
                                 }
                             }
                         }
 
-                        // Upload file and store new sync info
-                        ProcessUpload(uploadFiles, folderInfo);
-
-                        SetSyncInfo(folderInfo);
+                        // Add file to sync queue if not in sync
+                        if (!inSync)
+                        {
+                            if (found)
+                            {
+                                if (isStable && !maxFailedAttemptReached)
+                                {
+                                    uploadFiles.Add(fileInfo.FullName, new SyncInfo(folderInfo[fileInfo.Name]));
+                                    folderInfo[fileInfo.Name].LastSyncWriteTime = fileInfo.LastWriteTime;
+                                    folderInfo[fileInfo.Name].FileStableTime = -1;
+                                }
+                            }
+                            else
+                            {
+                                if (fileWaitTime == 0)
+                                {
+                                    uploadFiles.Add(fileInfo.FullName, new SyncInfo(DateTime.MinValue, fileInfo.LastWriteTime, 0));
+                                    folderInfo.Add(fileInfo.Name, new SyncInfo(DateTime.MinValue, fileInfo.LastWriteTime, -1));
+                                }
+                                else
+                                {
+                                    folderInfo.Add(fileInfo.Name, new SyncInfo(DateTime.MinValue, fileInfo.LastWriteTime, 0));
+                                }
+                            }
+                        }
                     }
+
+                    // Upload file and store new sync info
+                    ProcessUpload(uploadFiles, folderInfo);
+
+                    SetSyncInfo(folderInfo);
                 }
                 catch (Exception e)
                 {
-                    this.EventLog.WriteEntry("Exception caught on timer completion: " + e.Message, EventLogEntryType.Error);
+                    this.EventLog.WriteEntry("Exception caught on worker thread: " + e.Message, EventLogEntryType.Error);
+                    // Continue worker thread
                 }
+
+                Thread.Sleep(this.monitorInterval);
+            }
         }
 
         /// <summary>
@@ -491,9 +498,12 @@ namespace WatchFolderService
             {
                 foreach (string fileName in info.Keys)
                 {
-                    string line = fileName + ";" + info[fileName].LastSyncWriteTime.ToString(DATETIME_FORMAT) + ";" 
-                                  + info[fileName].NewSyncWriteTime.ToString(DATETIME_FORMAT) + ";" + info[fileName].FileStableTime
-                                  + ";" + info[fileName].NumberOfAttempts;
+                    string line =
+                        fileName + ";"
+                        + info[fileName].LastSyncWriteTime.ToString(DATETIME_FORMAT, CultureInfo.InvariantCulture) + ";" 
+                        + info[fileName].NewSyncWriteTime.ToString(DATETIME_FORMAT, CultureInfo.InvariantCulture) + ";"
+                        + info[fileName].FileStableTime + ";"
+                        + info[fileName].NumberOfAttempts;
 
                     if (verbose)
                     {
