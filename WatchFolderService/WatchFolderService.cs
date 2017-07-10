@@ -539,7 +539,7 @@ namespace WatchFolderService
             {
                 foreach (string ext in extensions)
                 {
-                    if (fileInfo.Extension.Equals(ext) && IsFileAccessible(fileInfo))
+                    if (fileInfo.Extension.Equals(ext, StringComparison.OrdinalIgnoreCase) && IsFileAccessible(fileInfo))
                     {
                         resultArray.Add(fileInfo);
                         break;
