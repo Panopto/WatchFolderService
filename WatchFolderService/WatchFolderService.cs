@@ -30,7 +30,7 @@ namespace WatchFolderService
         private Thread workerThread = null;
         private ManualResetEvent stopRequested = null;
         private int fileWaitTime = 60;
-        private long defaultPartsize = 1048576;
+        private long defaultPartsize = 6000000;
         private string[] extensions;
         private bool inputValid = true;
         private string inputFailureMessage = "";
@@ -162,7 +162,7 @@ namespace WatchFolderService
             serviceStatus.dwWaitHint = 100000;
             SetServiceStatus(this.ServiceHandle, ref serviceStatus);
 
-            this.EventLog.WriteEntry("Service Started Successfully"); // Event Log Record
+            this.EventLog.WriteEntry("Service Started Successfully. Version=" + typeof(WatchFolderService).Assembly.GetName().Version);
 
             // Check input values
             bool hasInvalidInput = false;
