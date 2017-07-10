@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-	<Product Id="*" Name="Panopto Watch Folder Service" Version="1.1.3.0" Manufacturer="Panopto" Language="1033" UpgradeCode="841957fd-9904-43a3-8c78-84b9a7c8219e">
+	<Product Id="*" Name="Panopto Watch Folder Service" Version="1.2.0.0" Manufacturer="Panopto" Language="1033" UpgradeCode="841957fd-9904-43a3-8c78-84b9a7c8219e">
 		<Package InstallerVersion="300" Compressed="yes" InstallScope="perMachine" />
     <Media Id="1" Cabinet="Cab1.cab" EmbedCab="yes" />
 
