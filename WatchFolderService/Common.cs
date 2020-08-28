@@ -309,11 +309,14 @@ namespace WatchFolderService
 
             Uri serviceUri = new Uri(GetServiceUrlFromUploadTarget(uploadTarget));
 
+            // Panopto server supports signature version 2 at this time.
+            Amazon.AWSConfigsS3.UseSignatureVersion4 = false;
             AmazonS3Config s3Config = new AmazonS3Config()
             {
                 // Amazon SDK will append uploadBucketName ("Upload") to the path and hence hit the actual service endpoint
                 ServiceURL = serviceUri.AbsoluteUri,
-                UseHttp = serviceUri.Scheme == "http"
+                UseHttp = serviceUri.Scheme == "http",
+                SignatureVersion = "2",
             };
 
             AmazonS3Client s3Client = new AmazonS3Client(
