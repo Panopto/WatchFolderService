@@ -34,11 +34,10 @@ Configuration items
 
 Build environment
 -----------------
-This code should be able to be built by the following tools.
-- Visual Studio 2015 Professional or above (not confirmed if community edition may build this)
-- WiX 3.10
+This code can be built by Visual Studio 2019 Professional or upper editions. This solution automatically downloads AWS SDK and WiX by NuGet Package Manager.
 
-In addition, Visual Studio automatically downloads AWS SDK (version 2) via NuGet (https://www.nuget.org/packages/AWSSDK/). As of writing, Panopto upload API does not work well with newer version of AWS SDK.
+Panopto does not test if Visual Studio community edition or older versions of Visual Studio may build this.
+
 
 Tip for development
 -------------------
