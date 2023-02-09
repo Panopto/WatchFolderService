@@ -35,7 +35,9 @@ namespace WatchFolderService
         private bool inputValid = true;
         private string inputFailureMessage = "";
         private int maxNumberOfAttempts = 3;
-        private bool verbose = false;
+        public static bool verbose = false;
+        public static EventLog eventLog = new EventLog();
+
 
         // This name must be something different from "PanoptoWatchFolderService".
         // That name was once used associated with custom log and the association seems
@@ -48,16 +50,18 @@ namespace WatchFolderService
             InitializeComponent();
 
             // Setup event log
-            this.AutoLog = true;
-            ((ISupportInitialize)this.EventLog).BeginInit();
+            AutoLog = true;
+
+            ((ISupportInitialize)EventLog).BeginInit();
             if (!EventLog.SourceExists(WatchFolderService.EventLogSourceName))
             {
                 EventLog.CreateEventSource(WatchFolderService.EventLogSourceName, "Application");
             }
-            ((ISupportInitialize)this.EventLog).EndInit();
+            ((ISupportInitialize)EventLog).EndInit();
 
-            this.EventLog.Source = WatchFolderService.EventLogSourceName;
-            this.EventLog.Log = "Application";
+            eventLog.Source = WatchFolderService.EventLogSourceName;
+            eventLog.Log = "Application";
+
 
             // Parse config file
             server = ConfigurationManager.AppSettings["Server"];
@@ -484,7 +488,7 @@ namespace WatchFolderService
 
                 folderInfo.Add(info[0], syncInfo);
             }
-            
+
             return folderInfo;
         }
 
@@ -500,7 +504,7 @@ namespace WatchFolderService
                 {
                     string line =
                         fileName + ";"
-                        + info[fileName].LastSyncWriteTime.ToString(DATETIME_FORMAT, CultureInfo.InvariantCulture) + ";" 
+                        + info[fileName].LastSyncWriteTime.ToString(DATETIME_FORMAT, CultureInfo.InvariantCulture) + ";"
                         + info[fileName].NewSyncWriteTime.ToString(DATETIME_FORMAT, CultureInfo.InvariantCulture) + ";"
                         + info[fileName].FileStableTime + ";"
                         + info[fileName].NumberOfAttempts;
@@ -509,7 +513,7 @@ namespace WatchFolderService
                     {
                         this.EventLog.WriteEntry("Writing to InfoFile: " + line, EventLogEntryType.Information);
                     }
-                    
+
                     infoFile.WriteLine(line);
                 }
             }
@@ -522,7 +526,7 @@ namespace WatchFolderService
         /// <returns>DateTime created from timeString</returns>
         private DateTime GetDateTime(string timeString)
         {
-            return DateTime.ParseExact(timeString,DATETIME_FORMAT,CultureInfo.InvariantCulture);
+            return DateTime.ParseExact(timeString, DATETIME_FORMAT, CultureInfo.InvariantCulture);
         }
 
         /// <summary>
@@ -548,7 +552,7 @@ namespace WatchFolderService
             }
 
             FileInfo[] result = new FileInfo[resultArray.Count];
-            int i = 0;		
+            int i = 0;
             foreach (FileInfo fileInfo in resultArray)
             {
                 result[i] = fileInfo;
