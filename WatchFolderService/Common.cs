@@ -7,21 +7,19 @@ using Amazon.S3;
 using Amazon.S3.Model;
 using System.Web;
 using System.Web.Script.Serialization;
-
+using System.ComponentModel;
+using System.Diagnostics;
 namespace WatchFolderService
 {
     public class Common
     {
         // This is the target server url
         public static string server = "foo.bar.com";
-
         public static string uriStem = "https://" + server + "/Panopto/PublicAPI/REST";
         public static readonly string AuthCookieName = ".ASPXAUTH";
-
         public static readonly string UploadBucketName = "Upload";
         public static readonly string UploadTargetPathFragment_Panopto = "/Panopto/";
         public static readonly string UploadTargetPathFragment_PanoptoUpload = "/Panopto/Upload/";
-
         /// <summary>
         /// Change the server that the program is directed towards
         /// </summary>
@@ -165,7 +163,7 @@ namespace WatchFolderService
         /// <param name="responseBody">Text to parse.</param>
         /// <returns>New instance of the desired object type or null if a null string was passed in.</returns>
         public static T ParseResponseBody<T>(
-            string responseBody) where T: class, new()
+            string responseBody) where T : class, new()
         {
             if (responseBody == null)
             {
@@ -214,7 +212,7 @@ namespace WatchFolderService
                 return reader.ReadToEnd();
             }
         }
-        
+
         /// <summary>
         /// Assert that a response body is parsable as the desired type.
         /// </summary>
@@ -301,7 +299,7 @@ namespace WatchFolderService
         /// <returns>A new S3 client.</returns>
         public static AmazonS3Client CreateS3Client(
             string uploadTarget,
-            string accessKeyId = "foo", 
+            string accessKeyId = "foo",
             string secretAccessKey = "bar")
         {
             if (uploadTarget == null)
@@ -359,7 +357,7 @@ namespace WatchFolderService
             // AWS SDK for .NET 4.5 default content-length is 0.
             // Set this to zero so it's always valid.
             //
-            
+
             initiateRequest.Headers.ContentLength = 0;
             return s3Client.InitiateMultipartUpload(initiateRequest);
         }
@@ -375,11 +373,13 @@ namespace WatchFolderService
         /// <returns>List of upload part responses from the server.</returns>
         public static List<UploadPartResponse> UploadParts(
             AmazonS3Client s3Client,
-            string uploadTarget, 
+            string uploadTarget,
             string fileName,
             string uploadId,
             long partSize)
         {
+
+
             if (s3Client == null || uploadTarget == null || fileName == null || uploadId == null || partSize <= 0)
                 throw new InvalidDataException();
 
@@ -390,21 +390,35 @@ namespace WatchFolderService
             long filePosition = 0;
             for (int i = 1; filePosition < fileSize; i++)
             {
-                UploadPartRequest uploadRequest = new UploadPartRequest
+                try
                 {
-                    BucketName = Common.UploadBucketName,
-                    Key = fileKey,
-                    UploadId = uploadId,
-                    PartNumber = i,
-                    PartSize = partSize,
-                    FilePosition = filePosition,
-                    FilePath = fileName
-                };
+                    UploadPartRequest uploadRequest = new UploadPartRequest
+                    {
+                        BucketName = Common.UploadBucketName,
+                        Key = fileKey,
+                        UploadId = uploadId,
+                        PartNumber = i,
+                        PartSize = partSize,
+                        FilePosition = filePosition,
+                        FilePath = fileName
+                    };
 
-                // add the response to the list since it will be needed to complete the upload
-                uploadResponses.Add(s3Client.UploadPart(uploadRequest));
+                    // add the response to the list since it will be needed to complete the upload
+                    uploadResponses.Add(s3Client.UploadPart(uploadRequest));
 
-                filePosition += partSize;
+                    filePosition += partSize;
+                    if (WatchFolderService.verbose)
+                    {
+                        WatchFolderService.eventLog.WriteEntry($"Part number {i} has uploaded successfully for {fileName}. {filePosition} of {fileSize} uploaded", EventLogEntryType.Information);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    if (WatchFolderService.verbose)
+                    {
+                        WatchFolderService.eventLog.WriteEntry($"Part number {i} failed to upload for {fileName}. {filePosition} of {fileSize} uploaded. {ex}", EventLogEntryType.Warning);
+                    }
+                }
             }
 
             return uploadResponses;
@@ -435,7 +449,7 @@ namespace WatchFolderService
                 BucketName = Common.UploadBucketName,
                 Key = fileKey,
                 UploadId = uploadId,
-                
+
             };
 
             completeRequest.AddPartETags(partResponses);
@@ -489,10 +503,10 @@ namespace WatchFolderService
             int i = uploadTarget.IndexOf(Common.UploadTargetPathFragment_Panopto);
 
             if (i < 0)
-                throw new InvalidDataException(); 
+                throw new InvalidDataException();
 
             string result = uploadTarget.Substring(
-                0, 
+                0,
                 i + Common.UploadTargetPathFragment_Panopto.Length);
 
             return result;
@@ -543,7 +557,7 @@ namespace WatchFolderService
                 throw new InvalidDataException();
 
             return Path.Combine(
-                GetFileKeyPrefixFromUploadTarget(uploadTarget), 
+                GetFileKeyPrefixFromUploadTarget(uploadTarget),
                 Path.GetFileName(fileName));
         }
 
@@ -559,7 +573,7 @@ namespace WatchFolderService
         public static T CreateRestObject<T>(
             string authCookie,
             string noun,
-            T value) where T : BaseObject, new() 
+            T value) where T : BaseObject, new()
         {
             HttpWebRequest request = Common.CreateRequest(
                 "POST",
